@@ -1,33 +1,40 @@
+# sync_server.py
+
 import asyncio
 import websockets
-import json
-from database import fetch_query
+import os
 
+# Get the port from the environment variable (default to 8765 if not provided)
+PORT = int(os.environ.get("PORT", 8765))
+
+# A dictionary to store connected clients
 connected_clients = set()
 
-async def handle_client(websocket):
-    """Handles incoming WebSocket connections."""
+async def handler(websocket, path):
+    # Add the connected client
     connected_clients.add(websocket)
+    print(f"Client connected: {websocket.remote_address}")
     try:
         async for message in websocket:
-            message = json.loads(message)
-
-            # 🔹 Handle Sync Users Request
-            # 🔹 Handle Sync Users Request
-        if message.get("action") == "sync_users":
-            users = fetch_query("SELECT username FROM users")  # Get all users from database
-            for conn in connected_clients:
-                await conn.send(json.dumps({"action": "update_users", "users": users}))
-
-
-    except websockets.exceptions.ConnectionClosed:
-        pass
+            print(f"Received message: {message}")
+            
+            # Broadcast the message to all connected clients
+            for client in connected_clients:
+                if client != websocket:  # Avoid echoing the message back to the sender
+                    await client.send(message)
+    except websockets.ConnectionClosed:
+        print(f"Client disconnected: {websocket.remote_address}")
     finally:
+        # Remove the client when disconnected
         connected_clients.remove(websocket)
 
 async def main():
-    """Starts the WebSocket server."""
-    async with websockets.serve(handle_client, "localhost", 8765):
+    print(f"Starting server on port {PORT}")
+    async with websockets.serve(handler, "0.0.0.0", PORT):
         await asyncio.Future()  # Run forever
 
-asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Server stopped.")
