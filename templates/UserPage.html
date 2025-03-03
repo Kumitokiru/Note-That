@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Page - Note That</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #333;
+            color: white;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Sidebar (Left) */
+        .sidebar {
+            position: absolute;
+            width: 20vw;
+            height: 100vh;
+            background-color: #222;
+            padding: 15px;
+            border-right: 1px solid #555;
+            overflow-y: auto;
+            scrollbar-width: none; /* Firefox */
+        }
+        .sidebar::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+
+        /* Right Sidebar */
+        .right-sidebar {
+            position: absolute;
+            right: 0;
+            width: 15vw;
+            height: 100vh;
+            background-color: #222;
+            padding: 20px;
+            border-left: 1px solid #555;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        .right-sidebar::-webkit-scrollbar {
+            display: none;
+        }
+        .right-sidebar button {
+            width: 100%;
+            background-color: #555;
+            border-radius: 5px;
+            padding: 10px;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .right-sidebar button:hover {
+            background-color: gray;
+            transform: scale(1.1);
+            color: khaki;
+        }
+
+        .center-bar {
+            position: absolute;
+            width: 65vw;
+            height: 18vh;
+            left: 20vw;
+            bottom: 0;
+            background-color: #222;
+            border-top: 1px solid #555;
+            padding: 20px;
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        .center-bar::-webkit-scrollbar {
+            display: none;
+        }
+        .center-bar a:hover {
+            background-color: gray;  
+            color: khaki !important;
+        }
+        .sidebar a.note-item:hover {
+            background-color: gray;  
+            color: khaki !important; 
+        }
+
+        /* Main Content */
+        .main-content {
+            position: absolute;
+            left: 20vw;
+            width: 60vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Settings Button (New) */
+        .settings-container {
+            position: absolute;
+            top: 19px;
+            right: 10px;
+        }
+        .settings-container button {
+            padding: 10px 15px;
+            background-color: #555;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+        .settings-container button:hover {
+            background-color: gray;
+            color: khaki;
+        }
+
+        /* Profile Section */
+        .profile {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 10px;
+            font-size: 1.2em;
+            border-bottom: 1px solid #555;
+        }
+        .profile img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background-color: #777;
+        }
+
+        /* Input Fields */
+        input, textarea {
+            position: absolute;
+            width: 80%;
+            background-color: #555;
+            border: 1px solid #666;
+            border-radius: 5px;
+            color: white;
+            padding: 10px;
+        }
+        input {
+            top: 110px;
+            height: 40px;
+            left: 10%;
+            font-size: 2em;
+        }
+        textarea {
+            top: 170px;
+            height: 360px;
+            resize: none;
+            left: 10%;
+            font-size: 2em;
+        }
+
+        /* Buttons */
+        .buttons {
+            position: absolute;
+            top: 550px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+        }
+        button {
+            padding: 12px 18px;
+            background-color: #555;
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 130px;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        button:hover {
+            background-color: gray;
+            color: khaki;
+        }
+
+        /* Sidebar Highlight */
+        .sidebar .highlight {
+            background-color: gray;
+            color: khaki !important;
+            padding: 5px;
+            border-radius: 5px;
+            transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
+        }
+        .group-name {
+            font-size: 18px;
+            color: white;
+            transition: color 0.3s ease-in-out, transform 0.3s ease-in-out;
+            margin-top: 10px;
+        }
+        .group-name:hover {
+            
+            color: khaki !important; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Sidebar -->
+        <div class="sidebar">
+            <h3>Saved Notes</h3>
+            {% for note in saved_notes %}
+            <a href="{{ url_for('user_page', selected_note=note.name) }}" 
+               class="note-item {% if highlight_note == note.name %}highlight{% endif %}" 
+               style="display: block; color: white; text-decoration: none; padding: 5px 0;">
+                {{ note.name }}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="right-sidebar">
+            <a href="{{ url_for('create_group') }}">
+                <button>Create Group</button>
+            </a>
+            <div class="group-list" style="margin-top: 20px;">
+                <h4>Groups</h4>
+                <ul style="list-style: none; padding: 0;">
+                    {% for group in groups %}
+                    <li style="margin: 5px 0; font-size: 2em;">
+                        <a href="{{ url_for('group_page', group_name=group.name) }}" class="group-name" style="color: white; text-decoration: none;">
+                            {{ group.name if group.name else "Unnamed Group" }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Settings Button -->
+            <div class="settings-container">
+                <button onclick="window.location.href='/settings'">Settings</button>
+            </div>
+            <div class="profile">
+                <img id="imglbl" src="{{ profile_pic }}" alt="Profile Picture">
+                <span id="usrlbl">{{ username }}</span>
+            </div>
+            <form method="post" action="{{ url_for('user_page') }}">
+                <input type="text" name="note_title" placeholder="Note Name" value="{{ note_title }}">
+                <textarea name="note_content" placeholder="Type Here">{{ note_content }}</textarea>
+                <div class="buttons">
+                    <button type="submit" name="save_note">Save Note</button>
+                    <button type="submit" name="new_note">New Note</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Center Bar -->
+        <div class="center-bar">
+            <h3>Timestamp</h3>
+            {% for note in saved_notes %}
+            <a href="{{ url_for('user_page', highlight_note=note.name) }}" 
+               style="display: block; color: white; text-decoration: none; padding: 5px 0;font-size: 1.2em;">
+                {{ note.name }} - {{ note.timestamp }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- WebSocket Integration for Real-Time Sync -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        var socket = io.connect('http://127.0.0.1:5000');
+        socket.on('update_notes', function(data) {
+            console.log('New note:', data.note_name);
+            let notesList = document.querySelector('.sidebar');
+            let existingNotes = notesList.querySelectorAll('.note-item');
+            for (let note of existingNotes) {
+                if (note.textContent === data.note_name) {
+                    return;
+                }
+            }
+            let newNote = document.createElement('a');
+            newNote.href = `/user?selected_note=${data.note_name}`;
+            newNote.className = 'note-item';
+            newNote.style = "display: block; color: white; text-decoration: none; padding: 5px 0;";
+            newNote.textContent = data.note_name;
+            notesList.appendChild(newNote);
+        });
+    </script>
+</body>
+</html>
