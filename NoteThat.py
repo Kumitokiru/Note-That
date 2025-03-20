@@ -309,13 +309,13 @@ def download_signup_csv():
         return "User not found", 404
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["username", "email", "password"])
-    writer.writerow([user_info["username"], user_info["email"], user_info["password"]])
+    writer.writerow(["username", "email", "password", "profile_pic"])
+    writer.writerow([user_info["username"], user_info["email"], user_info["password"], user_info["profile_pic"]])
     output.seek(0)
     return send_file(io.BytesIO(output.getvalue().encode("utf-8")),
-                 download_name=f"{username}_credentials.csv",
-                 as_attachment=True,
-                 mimetype="text/csv")
+                     download_name=f"{username}_credentials.csv",
+                     as_attachment=True,
+                     mimetype="text/csv")
 
 @app.route("/download_notes")
 def download_notes():
