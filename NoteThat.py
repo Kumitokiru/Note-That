@@ -1,31 +1,28 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
 import os
 import csv
 import json
 from flask_socketio import SocketIO
 from datetime import datetime
-from pathlib import Path
-
 
 app = Flask(__name__)
 app.secret_key = "notethat_secret"
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Base folder for all files
-BASE_FOLDER = os.path.join(Path.home(), "NoteThat_Files")
+BASE_FOLDER = "files"
 
 # File paths
 USERS_FILE = os.path.join(BASE_FOLDER, "users.csv")
 GROUPS_FILE = os.path.join(BASE_FOLDER, "groups.csv")
 NOTES_FILE = os.path.join(BASE_FOLDER, "notes.csv")
-GROUP_NOTES_FILE = os.path.join(BASE_FOLDER, "group_notes.csv")
-TIME_LOG_FILE = os.path.join(BASE_FOLDER, "time_log.csv")
+GROUP_NOTES_FILE = os.path.join(BASE_FOLDER, "group_notes.csv")  # Separate CSV for group notes
+TIME_LOG_FILE = os.path.join(BASE_FOLDER, "time_log.csv")         # CSV for time logs
 UPLOAD_FOLDER = os.path.join(BASE_FOLDER, "uploads")
-
+               
 # Ensure necessary folders exist
 os.makedirs(BASE_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ### UTILITY FUNCTIONS ###
@@ -642,6 +639,32 @@ def set_language():
     session["language"] = selected_language
     return redirect(request.referrer or url_for("user_page"))
 
+# NEW ENDPOINTS FOR DOWNLOADING AND UPLOADING NOTES
+@app.route("/download_notes")
+def download_notes():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    username = session["username"]
+    filename = f"{username}_notes.csv"
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    if not os.path.exists(filepath):
+        return "No notes available to download.", 404
+    return send_file(filepath, as_attachment=True)
+
+@app.route("/upload_notes", methods=["POST"])
+def upload_notes():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    file = request.files.get("file")
+    if not file or not file.filename.endswith(".csv"):
+        return "Invalid file format. Only CSV files are allowed.", 400
+    username = session["username"]
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], f"{username}_notes.csv")
+    file.save(filepath)
+    return redirect(url_for("user_page"))
+
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))  # Get the port from Render environment or default to 5000
-    app.run(host="0.0.0.0", port=port, debug=True)
+    import eventlet
+    eventlet.monkey_patch()  # Optional but recommended for full compatibility
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host="127.0.0.1", port=port, debug=True)
