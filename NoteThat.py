@@ -4,7 +4,7 @@ import csv
 import json
 from flask_socketio import SocketIO
 from datetime import datetime
-
+from pathlib import Path
 
 
 app = Flask(__name__)
@@ -12,19 +12,20 @@ app.secret_key = "notethat_secret"
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Base folder for all files
-BASE_FOLDER = "files"
+BASE_FOLDER = os.path.join(Path.home(), "NoteThat_Files")
 
 # File paths
 USERS_FILE = os.path.join(BASE_FOLDER, "users.csv")
 GROUPS_FILE = os.path.join(BASE_FOLDER, "groups.csv")
 NOTES_FILE = os.path.join(BASE_FOLDER, "notes.csv")
-GROUP_NOTES_FILE = os.path.join(BASE_FOLDER, "group_notes.csv")  # Separate CSV for group notes
-TIME_LOG_FILE = os.path.join(BASE_FOLDER, "time_log.csv")         # CSV for time logs
+GROUP_NOTES_FILE = os.path.join(BASE_FOLDER, "group_notes.csv")
+TIME_LOG_FILE = os.path.join(BASE_FOLDER, "time_log.csv")
 UPLOAD_FOLDER = os.path.join(BASE_FOLDER, "uploads")
-               
+
 # Ensure necessary folders exist
 os.makedirs(BASE_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ### UTILITY FUNCTIONS ###
