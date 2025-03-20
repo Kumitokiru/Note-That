@@ -206,9 +206,61 @@
             margin-top: 10px;
         }
         .group-name:hover {
-            
             color: khaki !important; 
         }
+
+        /* Responsive adjustments for smaller devices */
+        @media (max-width: 768px) {
+            /* Adjust note input and textarea */
+            input, textarea {
+              font-size: 1.5em; /* Slightly smaller text */
+              width: 85%;       /* Increase width slightly to fit screen */
+              left: 7.5%;       /* Recenter if necessary */
+            }
+            /* Adjust buttons */
+            .buttons button {
+              font-size: 0.9em;
+              padding: 10px 15px;
+              width: 120px;
+            }
+            /* Adjust center bar for tablets */
+            .center-bar {
+              width: 90vw; /* Take up more screen width */
+              left: 5vw;
+              height: auto; /* Allow height to adjust based on content */
+              padding: 15px;
+            }
+            .center-bar button {
+              font-size: 0.9em;
+              padding: 10px 15px;
+            }
+          }
+          
+          @media (max-width: 480px) {
+            input, textarea {
+              font-size: 1.2em;
+              width: 90%;
+              left: 5%;
+            }
+            .buttons button {
+              font-size: 0.8em;
+              padding: 8px 12px;
+              width: 100px;
+            }
+            /* Adjust center bar for mobile phones */
+            .center-bar {
+              width: 95vw; /* Nearly full width */
+              left: 2.5vw;
+              height: auto; /* Adapt height to fit content */
+              padding: 10px;
+              text-align: center;
+            }
+            .center-bar button {
+              font-size: 0.8em;
+              padding: 8px 12px;
+            }
+          }
+          
     </style>
 </head>
 <body>
