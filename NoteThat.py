@@ -1,9 +1,14 @@
+import eventlet
+
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
 import os
 import csv
 import json
 from flask_socketio import SocketIO
 from datetime import datetime
+
+
+eventlet.monkey_patch()
 
 app = Flask(__name__)
 app.secret_key = "notethat_secret"
@@ -664,7 +669,6 @@ def upload_notes():
     return redirect(url_for("user_page"))
 
 if __name__ == "__main__":
-    import eventlet
-    eventlet.monkey_patch()  # Optional but recommended for full compatibility
+    # Optional but recommended for full compatibility
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host="127.0.0.1", port=port, debug=True)
+    socketio.run(app, host="0.0.0.0", port=port, debug=True)
