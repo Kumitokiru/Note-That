@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Page - Note That</title>
     <style>
+        /* (Your existing CSS remains unchanged) */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
             background-color: #333;
             color: white;
@@ -15,252 +15,103 @@
             width: 100vw;
             overflow: hidden;
         }
-
-        .container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        /* Sidebar (Left) */
+        .container { position: relative; width: 100vw; height: 100vh; }
         .sidebar {
-            position: absolute;
-            width: 20vw;
-            height: 100vh;
-            background-color: #222;
-            padding: 15px;
-            border-right: 1px solid #555;
-            overflow-y: auto;
-            scrollbar-width: none; /* Firefox */
+            position: absolute; width: 20vw; height: 100vh;
+            background-color: #222; padding: 15px; border-right: 1px solid #555;
+            overflow-y: auto; scrollbar-width: none;
         }
-        .sidebar::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Opera */
-        }
-
-        /* Right Sidebar */
+        .sidebar::-webkit-scrollbar { display: none; }
         .right-sidebar {
-            position: absolute;
-            right: 0;
-            width: 15vw;
-            height: 100vh;
-            background-color: #222;
-            padding: 20px;
-            border-left: 1px solid #555;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            align-items: center;
-            overflow-y: auto;
-            scrollbar-width: none;
+            position: absolute; right: 0; width: 15vw; height: 100vh;
+            background-color: #222; padding: 20px; border-left: 1px solid #555;
+            display: flex; flex-direction: column; justify-content: flex-start;
+            align-items: center; overflow-y: auto; scrollbar-width: none;
         }
-        .right-sidebar::-webkit-scrollbar {
-            display: none;
-        }
+        .right-sidebar::-webkit-scrollbar { display: none; }
         .right-sidebar button {
-            width: 100%;
-            background-color: #555;
-            border-radius: 5px;
-            padding: 10px;
-            color: white;
-            border: none;
-            cursor: pointer;
+            width: 100%; background-color: #555; border-radius: 5px;
+            padding: 10px; color: white; border: none; cursor: pointer;
         }
         .right-sidebar button:hover {
-            background-color: gray;
-            transform: scale(1.1);
-            color: khaki;
+            background-color: gray; transform: scale(1.1); color: khaki;
         }
-
         .center-bar {
-            position: absolute;
-            width: 65vw;
-            height: 18vh;
-            left: 20vw;
-            bottom: 0;
-            background-color: #222;
-            border-top: 1px solid #555;
-            padding: 20px;
-            overflow-y: auto;
-            scrollbar-width: none;
+            position: absolute; width: 65vw; height: 18vh;
+            left: 20vw; bottom: 0; background-color: #222;
+            border-top: 1px solid #555; padding: 20px;
+            overflow-y: auto; scrollbar-width: none;
         }
-        .center-bar::-webkit-scrollbar {
-            display: none;
-        }
+        .center-bar::-webkit-scrollbar { display: none; }
         .center-bar a:hover {
-            background-color: gray;  
-            color: khaki !important;
+            background-color: gray; color: khaki !important;
         }
         .sidebar a.note-item:hover {
-            background-color: gray;  
-            color: khaki !important; 
+            background-color: gray; color: khaki !important;
         }
-
-        /* Main Content */
         .main-content {
-            position: absolute;
-            left: 20vw;
-            width: 60vw;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
+            position: absolute; left: 20vw; width: 60vw; height: 100vh;
+            display: flex; flex-direction: column; align-items: center; padding: 20px;
         }
-
-        /* Settings Button (New) */
         .settings-container {
-            position: absolute;
-            top: 19px;
-            right: 10px;
+            position: absolute; top: 19px; right: 10px;
         }
         .settings-container button {
-            padding: 10px 15px;
-            background-color: #555;
-            border: none;
-            border-radius: 5px;
-            color: white;
-            cursor: pointer;
+            padding: 10px 15px; background-color: #555;
+            border: none; border-radius: 5px; color: white; cursor: pointer;
         }
         .settings-container button:hover {
-            background-color: gray;
-            color: khaki;
+            background-color: gray; color: khaki;
         }
-
-        /* Profile Section */
         .profile {
-            display: flex;
-            align-items: center;
-            width: 100%;
-            padding: 10px;
-            font-size: 1.2em;
-            border-bottom: 1px solid #555;
+            display: flex; align-items: center; width: 100%;
+            padding: 10px; font-size: 1.2em; border-bottom: 1px solid #555;
         }
         .profile img {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            margin-right: 10px;
-            background-color: #777;
+            width: 40px; height: 40px; border-radius: 50%;
+            margin-right: 10px; background-color: #777;
         }
-
-        /* Input Fields */
         input, textarea {
-            position: absolute;
-            width: 80%;
-            background-color: #555;
-            border: 1px solid #666;
-            border-radius: 5px;
-            color: white;
-            padding: 10px;
+            position: absolute; width: 80%; background-color: #555;
+            border: 1px solid #666; border-radius: 5px; color: white; padding: 10px;
         }
-        input {
-            top: 110px;
-            height: 40px;
-            left: 10%;
-            font-size: 2em;
-        }
-        textarea {
-            top: 170px;
-            height: 360px;
-            resize: none;
-            left: 10%;
-            font-size: 2em;
-        }
-
-        /* Buttons */
+        input { top: 110px; height: 40px; left: 10%; font-size: 2em; }
+        textarea { top: 170px; height: 360px; resize: none; left: 10%; font-size: 2em; }
         .buttons {
-            position: absolute;
-            top: 550px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 15px;
+            position: absolute; top: 550px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 15px;
         }
         button {
-            padding: 12px 18px;
-            background-color: #555;
-            color: white;
-            border: none;
-            cursor: pointer;
-            width: 130px;
-            border-radius: 5px;
+            padding: 12px 18px; background-color: #555; color: white;
+            border: none; cursor: pointer; width: 130px; border-radius: 5px;
             font-size: 1em;
         }
         button:hover {
-            background-color: gray;
-            color: khaki;
+            background-color: gray; color: khaki;
         }
-
-        /* Sidebar Highlight */
         .sidebar .highlight {
-            background-color: gray;
-            color: khaki !important;
-            padding: 5px;
-            border-radius: 5px;
+            background-color: gray; color: khaki !important;
+            padding: 5px; border-radius: 5px;
             transition: background-color 0.5s ease-in-out, color 0.5s ease-in-out;
         }
         .group-name {
-            font-size: 18px;
-            color: white;
+            font-size: 18px; color: white;
             transition: color 0.3s ease-in-out, transform 0.3s ease-in-out;
             margin-top: 10px;
         }
-        .group-name:hover {
-            color: khaki !important; 
-        }
-
-        /* Responsive adjustments for smaller devices */
+        .group-name:hover { color: khaki !important; }
         @media (max-width: 768px) {
-            /* Adjust note input and textarea */
-            input, textarea {
-              font-size: 1.5em; /* Slightly smaller text */
-              width: 85%;       /* Increase width slightly to fit screen */
-              left: 7.5%;       /* Recenter if necessary */
-            }
-            /* Adjust buttons */
-            .buttons button {
-              font-size: 0.9em;
-              padding: 10px 15px;
-              width: 120px;
-            }
-            /* Adjust center bar for tablets */
-            .center-bar {
-              width: 90vw; /* Take up more screen width */
-              left: 5vw;
-              height: auto; /* Allow height to adjust based on content */
-              padding: 15px;
-            }
-            .center-bar button {
-              font-size: 0.9em;
-              padding: 10px 15px;
-            }
-          }
-          
-          @media (max-width: 480px) {
-            input, textarea {
-              font-size: 1.2em;
-              width: 90%;
-              left: 5%;
-            }
-            .buttons button {
-              font-size: 0.8em;
-              padding: 8px 12px;
-              width: 100px;
-            }
-            /* Adjust center bar for mobile phones */
-            .center-bar {
-              width: 95vw; /* Nearly full width */
-              left: 2.5vw;
-              height: auto; /* Adapt height to fit content */
-              padding: 10px;
-              text-align: center;
-            }
-            .center-bar button {
-              font-size: 0.8em;
-              padding: 8px 12px;
-            }
-          }
-          
+            input, textarea { font-size: 1.5em; width: 85%; left: 7.5%; }
+            .buttons button { font-size: 0.9em; padding: 10px 15px; width: 120px; }
+            .center-bar { width: 90vw; left: 5vw; height: auto; padding: 15px; }
+            .center-bar button { font-size: 0.9em; padding: 10px 15px; }
+        }
+        @media (max-width: 480px) {
+            input, textarea { font-size: 1.2em; width: 90%; left: 5%; }
+            .buttons button { font-size: 0.8em; padding: 8px 12px; width: 100px; }
+            .center-bar { width: 95vw; left: 2.5vw; height: auto; padding: 10px; text-align: center; }
+            .center-bar button { font-size: 0.8em; padding: 8px 12px; }
+        }
     </style>
 </head>
 <body>
@@ -269,14 +120,11 @@
         <div class="sidebar">
             <h3>Saved Notes</h3>
             {% for note in saved_notes %}
-            <a href="{{ url_for('user_page', selected_note=note.name) }}" 
-               class="note-item {% if highlight_note == note.name %}highlight{% endif %}" 
-               style="display: block; color: white; text-decoration: none; padding: 5px 0;">
+            <a href="{{ url_for('user_page', selected_note=note.name) }}" class="note-item {% if highlight_note == note.name %}highlight{% endif %}" style="display: block; color: white; text-decoration: none; padding: 5px 0;">
                 {{ note.name }}
             </a>
             {% endfor %}
         </div>
-
         <!-- Right Sidebar -->
         <div class="right-sidebar">
             <a href="{{ url_for('create_group') }}">
@@ -295,7 +143,6 @@
                 </ul>
             </div>
         </div>
-
         <!-- Main Content -->
         <div class="main-content">
             <!-- Settings Button -->
@@ -315,19 +162,26 @@
                 </div>
             </form>
         </div>
-
         <!-- Center Bar -->
         <div class="center-bar">
             <h3>Timestamp</h3>
             {% for note in saved_notes %}
-            <a href="{{ url_for('user_page', highlight_note=note.name) }}" 
-               style="display: block; color: white; text-decoration: none; padding: 5px 0;font-size: 1.2em;">
+            <a href="{{ url_for('user_page', highlight_note=note.name) }}" style="display: block; color: white; text-decoration: none; padding: 5px 0;font-size: 1.2em;">
                 {{ note.name }} - {{ note.timestamp }}
             </a>
             {% endfor %}
         </div>
     </div>
-
+    <!-- Automatic CSV Download Script for User Notes -->
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('download_csv')) {
+            var link = document.createElement("a");
+            link.href = "{{ url_for('download_notes') }}";
+            document.body.appendChild(link);
+            link.click();
+        }
+    </script>
     <!-- WebSocket Integration for Real-Time Sync -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
