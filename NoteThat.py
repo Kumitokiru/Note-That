@@ -642,4 +642,5 @@ def set_language():
     return redirect(request.referrer or url_for("user_page"))
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+    port = int(os.environ.get('PORT', 5000))  # Get the port from Render environment or default to 5000
+    app.run(host="0.0.0.0", port=port, debug=True)
