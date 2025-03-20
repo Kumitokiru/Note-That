@@ -1,4 +1,5 @@
 import eventlet
+eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
 import os
@@ -6,9 +7,7 @@ import csv
 import json
 from flask_socketio import SocketIO
 from datetime import datetime
-
-
-eventlet.monkey_patch()
+import io
 
 app = Flask(__name__)
 app.secret_key = "notethat_secret"
@@ -138,7 +137,6 @@ def load_group_notes(group_name):
     return notes
 
 # TIME LOG FUNCTIONS
-# Updated header now includes the group name.
 TIME_LOG_HEADER = ["username", "group_name", "status", "timestamp"]
 
 def save_time_log(username, group_name, status):
@@ -153,7 +151,6 @@ def save_time_log(username, group_name, status):
     return timestamp
 
 def load_time_logs():
-    # Return logs grouped by group_name
     logs = {}
     if os.path.exists(TIME_LOG_FILE):
         with open(TIME_LOG_FILE, "r") as file:
@@ -239,7 +236,6 @@ def safe_parse_timestamp(ts):
             continue
     return datetime.min
 
-# New: Helper functions to update username in group records and group notes.
 def update_username_in_groups(old_username, new_username):
     if os.path.exists(GROUPS_FILE):
         updated_rows = []
@@ -300,6 +296,83 @@ def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, public, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     return response
+
+### NEW ENDPOINTS FOR AUTOMATIC DOWNLOADS
+
+@app.route("/download_signup_csv")
+def download_signup_csv():
+    if "signup_username" not in session:
+        return redirect(url_for("login"))
+    username = session["signup_username"]
+    user_info = get_user_info(username)
+    if not user_info:
+        return "User not found", 404
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["username", "email", "password"])
+    writer.writerow([user_info["username"], user_info["email"], user_info["password"]])
+    output.seek(0)
+    return send_file(io.BytesIO(output.getvalue().encode("utf-8")),
+                 download_name=f"{username}_credentials.csv",
+                 as_attachment=True,
+                 mimetype="text/csv")
+
+@app.route("/download_notes")
+def download_notes():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    username = session["username"]
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["note_name", "content", "timestamp"])
+    for note in load_notes(username):
+        writer.writerow([note["name"], note["content"], note["timestamp"]])
+    output.seek(0)
+    return send_file(io.BytesIO(output.getvalue().encode("utf-8")),
+                 download_name=f"{username}_notes.csv",
+                 as_attachment=True,
+                 mimetype="text/csv")
+
+
+@app.route("/download_group_notes")
+@app.route("/download_group_notes")
+def download_group_notes():
+    group_name = request.args.get("group_name")
+    if not group_name:
+        return "Group name not provided", 400
+
+    # Load group notes
+    notes = load_group_notes(group_name)
+    
+    # Load time logs for this group
+    all_logs = load_time_logs().get(group_name, [])
+    current_status = {}
+    # Compute latest status per member
+    for log in all_logs:
+        uname = log["username"]
+        ts = safe_parse_timestamp(log["timestamp"])
+        if uname not in current_status or ts > safe_parse_timestamp(current_status[uname]["timestamp"]):
+            current_status[uname] = {"status": log["status"], "timestamp": log["timestamp"]}
+
+    # Create CSV with header including member status and its timestamp
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["username", "note_title", "content", "note_timestamp", "member_status", "status_timestamp"])
+    for note in notes:
+        uname = note["username"]
+        if uname in current_status:
+            m_status = current_status[uname]["status"]
+            status_ts = current_status[uname]["timestamp"]
+        else:
+            m_status = "Clock In"
+            status_ts = ""
+        writer.writerow([uname, note["note_title"], note["content"], note["timestamp"], m_status, status_ts])
+    output.seek(0)
+    return send_file(io.BytesIO(output.getvalue().encode("utf-8")),
+                    download_name=f"{group_name}_notes.csv",
+                    as_attachment=True,
+                    mimetype="text/csv")
+
 
 ### ROUTES ###
 
@@ -421,8 +494,8 @@ def signup():
             if os.stat(USERS_FILE).st_size == 0:
                 writer.writerow(["first_name", "middle_name", "last_name", "username", "email", "password", "profile_pic", "age"])
             writer.writerow([first_name, "", last_name, username, email, password, profile_path, ""])
-        # Redirecting to the login page after signup instead of directly logging in
-        return redirect(url_for("login"))
+        session["signup_username"] = username
+        return render_template("download_signup.html")
     return render_template("Signup_Page.html")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -462,7 +535,8 @@ def user_page():
             note_content = request.form.get("note_content", "").strip()
             if note_title:
                 save_note(username, note_title, note_content)
-                return redirect(url_for("user_page", selected_note=note_title))
+                # Redirect with download_csv flag so that JS triggers auto-download once
+                return redirect(url_for("user_page", selected_note=note_title, download_csv=1))
         elif "new_note" in request.form:
             return redirect(url_for("user_page"))
     selected_note = request.args.get("selected_note")
@@ -514,7 +588,6 @@ def create_group():
                 with open(GROUPS_FILE, "a", newline="") as file:
                     writer = csv.writer(file)
                     writer.writerow([group_name] + selected_members)
-                # Redirect to the new group page
                 return redirect(url_for("group_page", group_name=group_name))
     user_dict = {u["username"]: u for u in all_users}
     return render_template("CreateGroup.html",
@@ -538,7 +611,6 @@ def time_page():
     if "username" not in session:
         return redirect(url_for("login"))
     username = session["username"]
-    # Expect group_name to be passed as a query parameter
     group_name = request.args.get("group_name", "")
     if not group_name:
         return redirect(url_for("user_page"))
@@ -579,7 +651,6 @@ def group_page():
                 group_members_details.append(u)
                 break
     group_notes = load_group_notes(group_name)
-    # Load time logs and filter only logs for this group.
     all_time_logs = load_time_logs()
     combined_logs = all_time_logs.get(group_name, [])
     combined_logs.sort(key=lambda x: safe_parse_timestamp(x["timestamp"]))
@@ -593,7 +664,7 @@ def group_page():
             current_status[member["username"]] = "Clock In"
     note_title = ""
     note_content = ""
-    editable = True  # Allow editing by default.
+    editable = True
     if request.method == "POST":
         if "save_note" in request.form:
             note_title = request.form.get("note_title", "").strip()
@@ -608,7 +679,8 @@ def group_page():
                         'timestamp': datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
                     }
                 })
-                return redirect(url_for("group_page", group_name=group_name, selected_note=note_title))
+                # Redirect with download_csv flag for group notes
+                return redirect(url_for("group_page", group_name=group_name, selected_note=note_title, download_csv=1))
         elif "new_note" in request.form:
             return redirect(url_for("group_page", group_name=group_name))
     selected_note = request.args.get("selected_note")
@@ -643,30 +715,6 @@ def set_language():
     selected_language = request.form.get("language", "")
     session["language"] = selected_language
     return redirect(request.referrer or url_for("user_page"))
-
-# NEW ENDPOINTS FOR DOWNLOADING AND UPLOADING NOTES
-@app.route("/download_notes")
-def download_notes():
-    if "username" not in session:
-        return redirect(url_for("login"))
-    username = session["username"]
-    filename = f"{username}_notes.csv"
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    if not os.path.exists(filepath):
-        return "No notes available to download.", 404
-    return send_file(filepath, as_attachment=True)
-
-@app.route("/upload_notes", methods=["POST"])
-def upload_notes():
-    if "username" not in session:
-        return redirect(url_for("login"))
-    file = request.files.get("file")
-    if not file or not file.filename.endswith(".csv"):
-        return "Invalid file format. Only CSV files are allowed.", 400
-    username = session["username"]
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], f"{username}_notes.csv")
-    file.save(filepath)
-    return redirect(url_for("user_page"))
 
 if __name__ == "__main__":
     # Optional but recommended for full compatibility
