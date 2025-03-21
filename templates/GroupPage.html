@@ -217,6 +217,18 @@
       font-size: 1em;
     }
     .buttons button:hover { background-color: gray; color: khaki; }
+    @media (max-width: 768px) {
+      input, textarea { font-size: 1.5em; width: 85%; left: 7.5%; }
+      .buttons button { font-size: 0.9em; padding: 10px 15px; width: 120px; }
+      .center-bar { width: 90vw; left: 5vw; height: auto; padding: 15px; }
+      
+    }
+    @media (max-width: 480px) {
+      input, textarea { font-size: 1.2em; width: 90%; left: 5%; }
+      .buttons button { font-size: 0.8em; padding: 8px 12px; width: 100px; }
+      .center-bar { width: 95vw; left: 2.5vw; height: auto; padding: 10px; text-align: center; }
+      
+    }
   </style>
 </head>
 <body>
