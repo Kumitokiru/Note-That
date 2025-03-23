@@ -6,7 +6,6 @@
     <title>User Page - Note That</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
             background-color: #333;
             color: white;
@@ -15,13 +14,11 @@
             width: 100vw;
             overflow: hidden;
         }
-
         .container {
             position: relative;
             width: 100vw;
             height: 100vh;
         }
-
         /* Sidebar (Left) */
         .sidebar {
             position: absolute;
@@ -31,12 +28,11 @@
             padding: 15px;
             border-right: 1px solid #555;
             overflow-y: auto;
-            scrollbar-width: none; /* Firefox */
+            scrollbar-width: none;
         }
         .sidebar::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Opera */
+            display: none;
         }
-
         /* Right Sidebar */
         .right-sidebar {
             position: absolute;
@@ -70,7 +66,6 @@
             transform: scale(1.1);
             color: khaki;
         }
-
         .center-bar {
             position: absolute;
             width: 65vw;
@@ -87,14 +82,13 @@
             display: none;
         }
         .center-bar a:hover {
-            background-color: gray;  
+            background-color: gray;
             color: khaki !important;
         }
         .sidebar a.note-item:hover {
-            background-color: gray;  
-            color: khaki !important; 
+            background-color: gray;
+            color: khaki !important;
         }
-
         /* Main Content */
         .main-content {
             position: absolute;
@@ -106,8 +100,7 @@
             align-items: center;
             padding: 20px;
         }
-
-        /* Settings Button (New) */
+        /* Settings Button */
         .settings-container {
             position: absolute;
             top: 19px;
@@ -125,7 +118,6 @@
             background-color: gray;
             color: khaki;
         }
-
         /* Profile Section */
         .profile {
             display: flex;
@@ -142,7 +134,6 @@
             margin-right: 10px;
             background-color: #777;
         }
-
         /* Input Fields */
         input, textarea {
             position: absolute;
@@ -166,7 +157,6 @@
             left: 10%;
             font-size: 2em;
         }
-
         /* Buttons */
         .buttons {
             position: absolute;
@@ -190,7 +180,6 @@
             background-color: gray;
             color: khaki;
         }
-
         /* Sidebar Highlight */
         .sidebar .highlight {
             background-color: gray;
@@ -206,8 +195,7 @@
             margin-top: 10px;
         }
         .group-name:hover {
-            
-            color: khaki !important; 
+            color: khaki !important;
         }
         @media (max-width: 768px) {
             input, textarea { font-size: 1.5em; width: 85%; left: 7.5%; }
@@ -236,7 +224,6 @@
             </a>
             {% endfor %}
         </div>
-
         <!-- Right Sidebar -->
         <div class="right-sidebar">
             <a href="{{ url_for('create_group') }}">
@@ -255,7 +242,6 @@
                 </ul>
             </div>
         </div>
-
         <!-- Main Content -->
         <div class="main-content">
             <!-- Settings Button -->
@@ -275,7 +261,6 @@
                 </div>
             </form>
         </div>
-
         <!-- Center Bar -->
         <div class="center-bar">
             <h3>Timestamp</h3>
@@ -285,9 +270,12 @@
                 {{ note.name }} - {{ note.timestamp }}
             </a>
             {% endfor %}
+            <!-- Download Saved Notes Button -->
+            <form method="get" action="{{ url_for('download_notes') }}">
+                <button type="submit" style="margin-top: 10px;">Download Saved Notes</button>
+            </form>
         </div>
     </div>
-
     <!-- WebSocket Integration for Real-Time Sync -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
