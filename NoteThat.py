@@ -389,7 +389,7 @@ def home():
     return redirect(url_for("user_page"))
 
 @app.route("/signup", methods=["GET", "POST"])
-def signup_route():
+def signup():
     if request.method == "POST":
         first_name = request.form.get("txtf1", "").strip()
         last_name = request.form.get("txtf3", "").strip()
