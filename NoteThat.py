@@ -5,14 +5,19 @@ import json
 from flask_socketio import SocketIO
 from datetime import datetime
 
-
-
 app = Flask(__name__)
 app.secret_key = "notethat_secret"
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Base folder for all files
-BASE_FOLDER = "files"
+# Set base folder to "NoteThat" folder on the user's Desktop
+DESKTOP_PATH = os.path.join(os.path.expanduser("~"), "Desktop", "NoteThat")
+BASE_FOLDER = DESKTOP_PATH
+UPLOAD_FOLDER = os.path.join(BASE_FOLDER, "uploads")
+
+# Ensure necessary folders exist
+os.makedirs(BASE_FOLDER, exist_ok=True)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # File paths
 USERS_FILE = os.path.join(BASE_FOLDER, "users.csv")
@@ -20,12 +25,6 @@ GROUPS_FILE = os.path.join(BASE_FOLDER, "groups.csv")
 NOTES_FILE = os.path.join(BASE_FOLDER, "notes.csv")
 GROUP_NOTES_FILE = os.path.join(BASE_FOLDER, "group_notes.csv")  # Separate CSV for group notes
 TIME_LOG_FILE = os.path.join(BASE_FOLDER, "time_log.csv")         # CSV for time logs
-UPLOAD_FOLDER = os.path.join(BASE_FOLDER, "uploads")
-               
-# Ensure necessary folders exist
-os.makedirs(BASE_FOLDER, exist_ok=True)
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ### UTILITY FUNCTIONS ###
 
@@ -135,7 +134,6 @@ def load_group_notes(group_name):
     return notes
 
 # TIME LOG FUNCTIONS
-# Updated header now includes the group name.
 TIME_LOG_HEADER = ["username", "group_name", "status", "timestamp"]
 
 def save_time_log(username, group_name, status):
@@ -150,7 +148,6 @@ def save_time_log(username, group_name, status):
     return timestamp
 
 def load_time_logs():
-    # Return logs grouped by group_name
     logs = {}
     if os.path.exists(TIME_LOG_FILE):
         with open(TIME_LOG_FILE, "r") as file:
@@ -176,20 +173,13 @@ def load_users():
             reader = csv.reader(file)
             next(reader, None)
             for row in reader:
-                if len(row) >= 7:
+                if len(row) >= 4:
                     user = {
-                        "first_name": row[0],
-                        "middle_name": row[1],
-                        "last_name": row[2],
-                        "username": row[3],
-                        "email": row[4],
-                        "password": row[5],
-                        "profile_pic": row[6] if row[6] else "default.png"
+                        "username": row[0],
+                        "email": row[1],
+                        "password": row[2],
+                        "profile_pic": row[3] if row[3] else "default.png"
                     }
-                    if len(row) >= 8:
-                        user["age"] = row[7]
-                    else:
-                        user["age"] = ""
                     users.append(user)
     return users
 
@@ -236,7 +226,7 @@ def safe_parse_timestamp(ts):
             continue
     return datetime.min
 
-# New: Helper functions to update username in group records and group notes.
+# Helper functions to update username in group records and group notes.
 def update_username_in_groups(old_username, new_username):
     if os.path.exists(GROUPS_FILE):
         updated_rows = []
@@ -399,7 +389,7 @@ def home():
     return redirect(url_for("user_page"))
 
 @app.route("/signup", methods=["GET", "POST"])
-def signup():
+def signup_route():
     if request.method == "POST":
         first_name = request.form.get("txtf1", "").strip()
         last_name = request.form.get("txtf3", "").strip()
@@ -418,7 +408,6 @@ def signup():
             if os.stat(USERS_FILE).st_size == 0:
                 writer.writerow(["first_name", "middle_name", "last_name", "username", "email", "password", "profile_pic", "age"])
             writer.writerow([first_name, "", last_name, username, email, password, profile_path, ""])
-        # Redirecting to the login page after signup instead of directly logging in
         return redirect(url_for("login"))
     return render_template("Signup_Page.html")
 
@@ -511,7 +500,6 @@ def create_group():
                 with open(GROUPS_FILE, "a", newline="") as file:
                     writer = csv.writer(file)
                     writer.writerow([group_name] + selected_members)
-                # Redirect to the new group page
                 return redirect(url_for("group_page", group_name=group_name))
     user_dict = {u["username"]: u for u in all_users}
     return render_template("CreateGroup.html",
@@ -535,7 +523,6 @@ def time_page():
     if "username" not in session:
         return redirect(url_for("login"))
     username = session["username"]
-    # Expect group_name to be passed as a query parameter
     group_name = request.args.get("group_name", "")
     if not group_name:
         return redirect(url_for("user_page"))
@@ -576,7 +563,6 @@ def group_page():
                 group_members_details.append(u)
                 break
     group_notes = load_group_notes(group_name)
-    # Load time logs and filter only logs for this group.
     all_time_logs = load_time_logs()
     combined_logs = all_time_logs.get(group_name, [])
     combined_logs.sort(key=lambda x: safe_parse_timestamp(x["timestamp"]))
@@ -590,7 +576,7 @@ def group_page():
             current_status[member["username"]] = "Clock In"
     note_title = ""
     note_content = ""
-    editable = True  # Allow editing by default.
+    editable = True
     if request.method == "POST":
         if "save_note" in request.form:
             note_title = request.form.get("note_title", "").strip()
@@ -642,5 +628,5 @@ def set_language():
     return redirect(request.referrer or url_for("user_page"))
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))  # Get the port from Render environment or default to 5000
+    port = int(os.environ.get('PORT', 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
