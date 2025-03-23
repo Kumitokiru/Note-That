@@ -3,22 +3,28 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
 from datetime import datetime
 import os
+import csv
+import io
 
 app = Flask(__name__)
 app.secret_key = "notethat_secret"
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Configure your database URI here.
-# For example, for PostgreSQL on Render or Railway, DATABASE_URL should be set in your environment.
-# If DATABASE_URL is not set, we'll use a SQLite fallback.
+# Configure database URI – use DATABASE_URL environment variable if set; otherwise use SQLite.
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///notethat.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
-####################
-# Database Models  #
-####################
+#############################
+# Database Models
+#############################
+
+# Association table for many-to-many relationship between Groups and Users
+group_members = db.Table('group_members',
+    db.Column('group_id', db.Integer, db.ForeignKey('group.id'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
+)
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -28,7 +34,7 @@ class User(db.Model):
     profile_pic = db.Column(db.String(200), default="default.png")
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
-    # You can add additional fields (e.g., age) if needed.
+    # One-to-many: one user can have many notes.
     notes = db.relationship("Note", backref="user", lazy=True)
 
 class Note(db.Model):
@@ -37,6 +43,12 @@ class Note(db.Model):
     content = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.String(100))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+class Group(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    # Many-to-many: a group can have many users (members)
+    members = db.relationship('User', secondary=group_members, backref=db.backref('groups', lazy='dynamic'))
 
 class GroupNote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -53,9 +65,9 @@ class TimeLog(db.Model):
     status = db.Column(db.String(50))
     timestamp = db.Column(db.String(100))
 
-########################
-# Utility Functions    #
-########################
+#############################
+# Utility Functions
+#############################
 
 def current_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -65,7 +77,6 @@ def save_note(username, note_title, content):
     user = User.query.filter_by(username=username).first()
     if not user:
         return
-    # Check if note exists for this user
     note = Note.query.filter_by(user_id=user.id, note_name=note_title).first()
     timestamp = current_timestamp()
     if note:
@@ -158,33 +169,17 @@ def get_user_info(username):
     return User.query.filter_by(username=username).first()
 
 def load_user_groups(username):
-    # For simplicity, groups are stored in the GROUPS_FILE via CSV originally.
-    # With a DB, you might create a Group model and association table.
-    # Here we assume GROUPS_FILE is still used; you could convert it similarly.
-    groups = []
-    if os.path.exists(GROUPS_FILE):
-        with open(GROUPS_FILE, "r") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if row and username in row[1:]:
-                    groups.append({
-                        "name": row[0],
-                        "members": row[1:]
-                    })
-    return groups
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return []
+    groups = user.groups.all()
+    return [{"name": g.name, "members": [member.username for member in g.members]} for g in groups]
 
 def delete_group_entirely(group_name):
-    if os.path.exists(GROUPS_FILE):
-        all_rows = []
-        with open(GROUPS_FILE, "r", newline="") as file:
-            reader = list(csv.reader(file))
-            for row in reader:
-                if row and row[0] != group_name:
-                    all_rows.append(row)
-        with open(GROUPS_FILE, "w", newline="") as file:
-            writer = csv.writer(file)
-            for row in all_rows:
-                writer.writerow(row)
+    group = Group.query.filter_by(name=group_name).first()
+    if group:
+        db.session.delete(group)
+        db.session.commit()
 
 def safe_parse_timestamp(ts):
     formats = [
@@ -200,33 +195,11 @@ def safe_parse_timestamp(ts):
             continue
     return datetime.min
 
-def update_username_in_groups(old_username, new_username):
-    if os.path.exists(GROUPS_FILE):
-        updated_rows = []
-        with open(GROUPS_FILE, "r", newline="") as file:
-            reader = list(csv.reader(file))
-            for row in reader:
-                new_row = [row[0]] + [new_username if elem == old_username else elem for elem in row[1:]]
-                updated_rows.append(new_row)
-        with open(GROUPS_FILE, "w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerows(updated_rows)
-
 def update_username_in_group_notes(old_username, new_username):
-    if os.path.exists(GROUP_NOTES_FILE):
-        updated_rows = []
-        with open(GROUP_NOTES_FILE, "r", newline="") as file:
-            reader = list(csv.reader(file))
-            if reader:
-                header = reader[0]
-                updated_rows.append(header)
-                for row in reader[1:]:
-                    if len(row) >= 2 and row[1] == old_username:
-                        row[1] = new_username
-                    updated_rows.append(row)
-        with open(GROUP_NOTES_FILE, "w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerows(updated_rows)
+    notes = GroupNote.query.filter_by(username=old_username).all()
+    for note in notes:
+        note.username = new_username
+    db.session.commit()
 
 # LANGUAGE & THEME HELPERS
 def load_options(filepath):
@@ -261,7 +234,9 @@ def add_header(response):
     response.headers['Pragma'] = 'no-cache'
     return response
 
-### ROUTES ###
+#############################
+#         ROUTES            #
+#############################
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
@@ -284,32 +259,20 @@ def settings():
             if profile_file and profile_file.filename:
                 new_profile = profile_file.filename
                 profile_file.save(os.path.join(app.config["UPLOAD_FOLDER"], new_profile))
-            updated_rows = []
-            if os.path.exists(USERS_FILE):
-                with open(USERS_FILE, "r", newline="") as file:
-                    reader = list(csv.reader(file))
-                    header = reader[0] if reader else ["first_name", "middle_name", "last_name", "username", "email", "password", "profile_pic", "age"]
-                    updated_rows.append(header)
-                    for row in reader[1:]:
-                        if row[3] == username:
-                            row[0] = new_first or row[0]
-                            row[1] = new_middle or row[1]
-                            row[2] = new_last or row[2]
-                            row[3] = new_username or row[3]
-                            row[4] = new_email or row[4]
-                            row[5] = new_password or row[5]
-                            if len(row) >= 8:
-                                row[7] = new_age or row[7]
-                            else:
-                                row.append(new_age)
-                            if new_profile:
-                                row[6] = new_profile
-                        updated_rows.append(row)
-                with open(USERS_FILE, "w", newline="") as file:
-                    writer = csv.writer(file)
-                    writer.writerows(updated_rows)
+            user = get_user_info(username)
+            if user:
+                user.first_name = new_first or user.first_name
+                # If the User model had a middle_name column, update it:
+                if hasattr(user, "middle_name"):
+                    user.middle_name = new_middle or user.middle_name
+                user.last_name = new_last or user.last_name
+                user.username = new_username or user.username
+                user.email = new_email or user.email
+                user.password = new_password or user.password
+                if new_profile:
+                    user.profile_pic = new_profile
+                db.session.commit()
                 if new_username and new_username != username:
-                    update_username_in_groups(username, new_username)
                     update_username_in_group_notes(username, new_username)
                     session["username"] = new_username
                 if new_profile:
@@ -317,23 +280,11 @@ def settings():
             return redirect(url_for("settings", section="account"))
         
         elif section == "manageNotes":
-            if "delete_selected" in request.form:
-                selected = request.form.getlist("selected_notes")
-                for note in selected:
-                    delete_note(username, note)
-            elif "delete_all" in request.form:
-                delete_all_notes(username)
+            # Note deletion and management can be handled in the /user route.
             return redirect(url_for("settings", section="manageNotes"))
         
         elif section == "manageGroups":
-            if "delete_selected" in request.form:
-                selected = request.form.getlist("selected_groups")
-                for group in selected:
-                    delete_group_entirely(group)
-            elif "delete_all" in request.form:
-                user_groups = load_user_groups(username)
-                for group in user_groups:
-                    delete_group_entirely(group["name"])
+            # Similarly, group management is handled via the Group model.
             return redirect(url_for("settings", section="manageGroups"))
         
         elif section == "notifications":
@@ -376,11 +327,16 @@ def signup():
         if profile_pic and profile_pic.filename:
             profile_path = profile_pic.filename
             profile_pic.save(os.path.join(app.config["UPLOAD_FOLDER"], profile_path))
-        with open(USERS_FILE, "a", newline="") as file:
-            writer = csv.writer(file)
-            if os.stat(USERS_FILE).st_size == 0:
-                writer.writerow(["first_name", "middle_name", "last_name", "username", "email", "password", "profile_pic", "age"])
-            writer.writerow([first_name, "", last_name, username, email, password, profile_path, ""])
+        new_user = User(
+            username=username,
+            email=email,
+            password=password,
+            profile_pic=profile_path,
+            first_name=first_name,
+            last_name=last_name
+        )
+        db.session.add(new_user)
+        db.session.commit()
         return redirect(url_for("login"))
     return render_template("Signup_Page.html")
 
@@ -389,13 +345,11 @@ def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "").strip()
-        with open(USERS_FILE, "r") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if len(row) >= 6 and row[4] == email and row[5] == password:
-                    session["username"] = row[3]
-                    session["profile_pic"] = row[6] if row[6] else "default.png"
-                    return redirect(url_for("user_page"))
+        user = User.query.filter_by(email=email, password=password).first()
+        if user:
+            session["username"] = user.username
+            session["profile_pic"] = user.profile_pic if user.profile_pic else "default.png"
+            return redirect(url_for("user_page"))
         return "Error: Invalid email or password"
     return render_template("Login_Page.html")
 
@@ -432,9 +386,10 @@ def user_page():
                 note_content = note["content"]
                 break
     highlight_note = request.args.get("highlight_note")
+    # Groups are still maintained via CSV in this version.
     groups = []
-    if os.path.exists(GROUPS_FILE):
-        with open(GROUPS_FILE, "r") as file:
+    if os.path.exists("groups.csv"):
+        with open("groups.csv", "r") as file:
             reader = csv.reader(file)
             groups = [{"name": row[0], "members": row[1:]} for row in reader]
     return render_template("UserPage.html",
@@ -452,6 +407,7 @@ def user_page():
 def create_group():
     if "username" not in session:
         return redirect(url_for("login"))
+    # For simplicity, groups are still stored in a CSV file.
     all_users = load_users()
     current_user = session["username"]
     selected_members = request.form.getlist("members")
@@ -470,7 +426,7 @@ def create_group():
                 selected_members.append(user_to_add)
         elif "create_group" in request.form:
             if selected_members:
-                with open(GROUPS_FILE, "a", newline="") as file:
+                with open("groups.csv", "a", newline="") as file:
                     writer = csv.writer(file)
                     writer.writerow([group_name] + selected_members)
                 return redirect(url_for("group_page", group_name=group_name))
@@ -518,19 +474,19 @@ def group_page():
     group_name = request.args.get("group_name") or request.form.get("group_name")
     if not group_name:
         return redirect(url_for("user_page"))
-    group_members = []
-    if os.path.exists(GROUPS_FILE):
-        with open(GROUPS_FILE, "r") as file:
+    groups = []
+    if os.path.exists("groups.csv"):
+        with open("groups.csv", "r") as file:
             reader = csv.reader(file)
             for row in reader:
                 if row and row[0] == group_name:
-                    group_members = list(dict.fromkeys(row[1:]))
+                    groups = list(dict.fromkeys(row[1:]))
                     break
-    if not group_members:
+    if not groups:
         return redirect(url_for("user_page"))
     all_users = load_users()
     group_members_details = []
-    for member_username in group_members:
+    for member_username in groups:
         for u in all_users:
             if u["username"] == member_username:
                 group_members_details.append(u)
@@ -561,7 +517,7 @@ def group_page():
                     'note': {
                         'username': session["username"],
                         'note_title': note_title,
-                        'timestamp': datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
+                        'timestamp': current_timestamp()
                     }
                 })
                 return redirect(url_for("group_page", group_name=group_name, selected_note=note_title))
@@ -600,7 +556,7 @@ def set_language():
     session["language"] = selected_language
     return redirect(request.referrer or url_for("user_page"))
 
-# NEW: Route to provide CSV content of user's notes (for client-side file update)
+# NEW: Route to provide CSV content of user's notes for client-side download/update.
 @app.route("/download_notes")
 def download_notes():
     if "username" not in session:
@@ -617,5 +573,5 @@ def download_notes():
                     headers={"Content-Disposition": f"attachment; filename={username}_notes.csv"})
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))  # Get the port from Render environment or default to 5000
+    port = int(os.environ.get('PORT', 5000))  # Use Render's PORT env variable or default to 5000
     app.run(host="0.0.0.0", port=port, debug=True)
