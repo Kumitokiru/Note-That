@@ -1,9 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
 import os
 import csv
-import json
-from flask_socketio import SocketIO
+import io
 from datetime import datetime
+from flask_socketio import SocketIO
 
 app = Flask(__name__)
 app.secret_key = "notethat_secret"
@@ -627,6 +627,22 @@ def set_language():
     session["language"] = selected_language
     return redirect(request.referrer or url_for("user_page"))
 
+# NEW: Route to provide CSV content of user's notes (for client-side file update)
+@app.route("/download_notes")
+def download_notes():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    username = session["username"]
+    notes = load_notes(username)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["username", "note_name", "content", "timestamp"])
+    for note in notes:
+        writer.writerow([username, note["name"], note["content"], note["timestamp"]])
+    output.seek(0)
+    return Response(output.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={username}_notes.csv"})
+
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5000))  # Get the port from environment or default to 5000
     app.run(host="0.0.0.0", port=port, debug=True)
