@@ -10,10 +10,16 @@ app = Flask(__name__)
 app.secret_key = "notethat_secret"
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Configure database URI – use DATABASE_URL environment variable if set; otherwise use SQLite.
+# Use PostgreSQL database from Railway, or fallback to SQLite for local testing
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///notethat.db")
+
+# Ensure compatibility with SQLAlchemy (Railway uses "postgres://", but SQLAlchemy expects "postgresql://")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
+
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 db = SQLAlchemy(app)
 
 #############################
