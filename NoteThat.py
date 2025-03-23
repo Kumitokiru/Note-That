@@ -312,33 +312,59 @@ def settings():
 def home():
     return redirect(url_for("user_page"))
 
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
-        first_name = request.form.get("txtf1", "").strip()
-        last_name = request.form.get("txtf3", "").strip()
-        username = request.form.get("txtf4", "").strip()
-        email = request.form.get("txtf5", "").strip()
-        password = request.form.get("txtf6", "").strip()
-        profile_pic = request.files.get("usrphtbtn")
-        if not first_name or not last_name or not username or not email or not password:
-            return "Error: Please fill in all required fields."
-        profile_path = "default.png"
-        if profile_pic and profile_pic.filename:
-            profile_path = profile_pic.filename
-            profile_pic.save(os.path.join(app.config["UPLOAD_FOLDER"], profile_path))
-        new_user = User(
-            username=username,
-            email=email,
-            password=password,
-            profile_pic=profile_path,
-            first_name=first_name,
-            last_name=last_name
-        )
-        db.session.add(new_user)
-        db.session.commit()
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    section = request.args.get("section", "account")
+    username = session.get("username")
+    if not username:
         return redirect(url_for("login"))
-    return render_template("Signup_Page.html")
+    
+    if request.method == "POST":
+        if section == "account":
+            new_first = request.form.get("firstName", "").strip()
+            new_middle = request.form.get("middleName", "").strip()
+            new_last = request.form.get("lastName", "").strip()
+            new_username = request.form.get("username", "").strip()
+            new_email = request.form.get("email", "").strip()
+            new_password = request.form.get("password", "").strip()
+            new_age = request.form.get("age", "").strip()
+            profile_file = request.files.get("profilePic")
+            new_profile = None
+            if profile_file and profile_file.filename:
+                new_profile = profile_file.filename
+                profile_file.save(os.path.join(app.config["UPLOAD_FOLDER"], new_profile))
+            user = get_user_info(username)
+            if user:
+                user.first_name = new_first or user.first_name
+                if hasattr(user, "middle_name"):
+                    user.middle_name = new_middle or user.middle_name
+                user.last_name = new_last or user.last_name
+                user.username = new_username or user.username
+                user.email = new_email or user.email
+                user.password = new_password or user.password
+                # Optionally update age if your model includes it.
+                if new_profile:
+                    user.profile_pic = new_profile
+                db.session.commit()
+                if new_username and new_username != username:
+                    update_username_in_group_notes(username, new_username)
+                    session["username"] = new_username
+                if new_profile:
+                    session["profile_pic"] = new_profile
+            return redirect(url_for("settings", section="account"))
+        # ... (other sections remain unchanged)
+    user_info = get_user_info(username)
+    user_notes = load_notes(username)
+    user_groups = load_user_groups(username)
+    settings_nav = ["Account", "Manage Notes", "Manage Groups", "About", "Log Out"]
+    return render_template("Settings.html",
+                           section=section,
+                           user=user_info,
+                           user_notes=user_notes,
+                           user_groups=user_groups,
+                           settings_nav=settings_nav)
+
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
