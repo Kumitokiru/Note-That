@@ -1,192 +1,166 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
-import os
-import csv
-import io
-from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
+from datetime import datetime
+import os
 
 app = Flask(__name__)
 app.secret_key = "notethat_secret"
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Set base folder to "NoteThat" folder on the user's Desktop
-DESKTOP_PATH = os.path.join(os.path.expanduser("~"), "Desktop", "NoteThat")
-BASE_FOLDER = DESKTOP_PATH
-UPLOAD_FOLDER = os.path.join(BASE_FOLDER, "uploads")
+# Configure your database URI here.
+# For example, for PostgreSQL on Render or Railway, DATABASE_URL should be set in your environment.
+# If DATABASE_URL is not set, we'll use a SQLite fallback.
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///notethat.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
 
-# Ensure necessary folders exist
-os.makedirs(BASE_FOLDER, exist_ok=True)
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+####################
+# Database Models  #
+####################
 
-# File paths
-USERS_FILE = os.path.join(BASE_FOLDER, "users.csv")
-GROUPS_FILE = os.path.join(BASE_FOLDER, "groups.csv")
-NOTES_FILE = os.path.join(BASE_FOLDER, "notes.csv")
-GROUP_NOTES_FILE = os.path.join(BASE_FOLDER, "group_notes.csv")  # Separate CSV for group notes
-TIME_LOG_FILE = os.path.join(BASE_FOLDER, "time_log.csv")         # CSV for time logs
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    password = db.Column(db.String(100), nullable=False)
+    profile_pic = db.Column(db.String(200), default="default.png")
+    first_name = db.Column(db.String(100))
+    last_name = db.Column(db.String(100))
+    # You can add additional fields (e.g., age) if needed.
+    notes = db.relationship("Note", backref="user", lazy=True)
 
-### UTILITY FUNCTIONS ###
+class Note(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    note_name = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=True)
+    timestamp = db.Column(db.String(100))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+class GroupNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_name = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(100), nullable=False)
+    note_title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=True)
+    timestamp = db.Column(db.String(100))
+
+class TimeLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), nullable=False)
+    group_name = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(50))
+    timestamp = db.Column(db.String(100))
+
+########################
+# Utility Functions    #
+########################
+
+def current_timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # NOTE FUNCTIONS
-def save_note(username, note_name, content):
-    timestamp = datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
-    user_notes = load_notes(username)
-    for note in user_notes:
-        if note["name"] == note_name:
-            note["content"] = content
-            note["timestamp"] = timestamp
-            break
+def save_note(username, note_title, content):
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return
+    # Check if note exists for this user
+    note = Note.query.filter_by(user_id=user.id, note_name=note_title).first()
+    timestamp = current_timestamp()
+    if note:
+        note.content = content
+        note.timestamp = timestamp
     else:
-        user_notes.append({"name": note_name, "content": content, "timestamp": timestamp})
-    all_rows = []
-    if os.path.exists(NOTES_FILE):
-        with open(NOTES_FILE, "r", newline="") as f:
-            reader = list(csv.reader(f))
-            if reader:
-                for row in reader[1:]:
-                    if row[0] != username:
-                        all_rows.append(row)
-    for note in user_notes:
-        all_rows.append([username, note["name"], note["content"], note["timestamp"]])
-    with open(NOTES_FILE, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["username", "note_name", "content", "timestamp"])
-        writer.writerows(all_rows)
+        note = Note(note_name=note_title, content=content, timestamp=timestamp, user_id=user.id)
+        db.session.add(note)
+    db.session.commit()
 
 def load_notes(username):
-    notes = []
-    if os.path.exists(NOTES_FILE):
-        with open(NOTES_FILE, "r") as file:
-            reader = csv.reader(file)
-            next(reader, None)
-            for row in reader:
-                if len(row) >= 4 and row[0] == username:
-                    notes.append({"name": row[1], "content": row[2], "timestamp": row[3]})
-    return notes
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return []
+    notes = Note.query.filter_by(user_id=user.id).all()
+    return [{"name": n.note_name, "content": n.content, "timestamp": n.timestamp} for n in notes]
 
-def delete_note(username, note_name):
-    all_rows = []
-    if os.path.exists(NOTES_FILE):
-        with open(NOTES_FILE, "r", newline="") as file:
-            reader = list(csv.reader(file))
-            for row in reader[1:]:
-                if not (row[0] == username and row[1] == note_name):
-                    all_rows.append(row)
-    with open(NOTES_FILE, "w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["username", "note_name", "content", "timestamp"])
-        writer.writerows(all_rows)
+def delete_note(username, note_title):
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return
+    note = Note.query.filter_by(user_id=user.id, note_name=note_title).first()
+    if note:
+        db.session.delete(note)
+        db.session.commit()
 
 def delete_all_notes(username):
-    all_rows = []
-    if os.path.exists(NOTES_FILE):
-        with open(NOTES_FILE, "r", newline="") as file:
-            reader = list(csv.reader(file))
-            for row in reader[1:]:
-                if row[0] != username:
-                    all_rows.append(row)
-    with open(NOTES_FILE, "w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["username", "note_name", "content", "timestamp"])
-        writer.writerows(all_rows)
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return
+    notes = Note.query.filter_by(user_id=user.id).all()
+    for note in notes:
+        db.session.delete(note)
+    db.session.commit()
 
 # GROUP NOTE FUNCTIONS
 def save_group_note(group_name, username, note_title, content):
-    timestamp = datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
-    notes = load_group_notes(group_name)
-    updated = False
-    for note in notes:
-        if note["note_title"] == note_title and note["username"] == username:
-            note["content"] = content
-            note["timestamp"] = timestamp
-            updated = True
-            break
-    if not updated:
-        notes.append({
-            "group_name": group_name,
-            "username": username,
-            "note_title": note_title,
-            "content": content,
-            "timestamp": timestamp
-        })
-    with open(GROUP_NOTES_FILE, "w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["group_name", "username", "note_title", "content", "timestamp"])
-        for note in notes:
-            writer.writerow([note["group_name"], note["username"], note["note_title"], note["content"], note["timestamp"]])
+    timestamp = current_timestamp()
+    note = GroupNote.query.filter_by(group_name=group_name, username=username, note_title=note_title).first()
+    if note:
+        note.content = content
+        note.timestamp = timestamp
+    else:
+        note = GroupNote(group_name=group_name, username=username, note_title=note_title,
+                         content=content, timestamp=timestamp)
+        db.session.add(note)
+    db.session.commit()
 
 def load_group_notes(group_name):
-    notes = []
-    if os.path.exists(GROUP_NOTES_FILE):
-        with open(GROUP_NOTES_FILE, "r") as file:
-            reader = csv.reader(file)
-            next(reader, None)
-            for row in reader:
-                if len(row) >= 5 and row[0] == group_name:
-                    notes.append({
-                        "group_name": row[0],
-                        "username": row[1],
-                        "note_title": row[2],
-                        "content": row[3],
-                        "timestamp": row[4]
-                    })
-    return notes
+    notes = GroupNote.query.filter_by(group_name=group_name).all()
+    return [{
+        "group_name": n.group_name,
+        "username": n.username,
+        "note_title": n.note_title,
+        "content": n.content,
+        "timestamp": n.timestamp
+    } for n in notes]
 
 # TIME LOG FUNCTIONS
-TIME_LOG_HEADER = ["username", "group_name", "status", "timestamp"]
-
 def save_time_log(username, group_name, status):
-    timestamp = datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
-    if os.path.exists(TIME_LOG_FILE) and not os.access(TIME_LOG_FILE, os.W_OK):
-        print(f"Permission issue: {TIME_LOG_FILE} is not writable")
-    with open(TIME_LOG_FILE, "a", newline="") as file:
-        writer = csv.writer(file)
-        if os.stat(TIME_LOG_FILE).st_size == 0:
-            writer.writerow(TIME_LOG_HEADER)
-        writer.writerow([username, group_name, status, timestamp])
+    timestamp = current_timestamp()
+    log = TimeLog(username=username, group_name=group_name, status=status, timestamp=timestamp)
+    db.session.add(log)
+    db.session.commit()
     return timestamp
 
 def load_time_logs():
-    logs = {}
-    if os.path.exists(TIME_LOG_FILE):
-        with open(TIME_LOG_FILE, "r") as file:
-            reader = csv.reader(file)
-            next(reader, None)
-            for row in reader:
-                if len(row) >= 4:
-                    uname, gname, status, timestamp = row[0], row[1], row[2], row[3]
-                    if gname not in logs:
-                        logs[gname] = []
-                    logs[gname].append({
-                        "username": uname,
-                        "status": status,
-                        "timestamp": timestamp
-                    })
-    return logs
+    logs = TimeLog.query.all()
+    result = {}
+    for log in logs:
+        if log.group_name not in result:
+            result[log.group_name] = []
+        result[log.group_name].append({
+            "username": log.username,
+            "status": log.status,
+            "timestamp": log.timestamp
+        })
+    return result
 
 # USER & GROUP MANAGEMENT
 def load_users():
-    users = []
-    if os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "r") as file:
-            reader = csv.reader(file)
-            next(reader, None)
-            for row in reader:
-                if len(row) >= 4:
-                    user = {
-                        "username": row[0],
-                        "email": row[1],
-                        "password": row[2],
-                        "profile_pic": row[3] if row[3] else "default.png"
-                    }
-                    users.append(user)
-    return users
+    users = User.query.all()
+    return [{
+        "username": u.username,
+        "email": u.email,
+        "profile_pic": u.profile_pic
+    } for u in users]
 
 def get_user_info(username):
-    return next((user for user in load_users() if user["username"] == username), None)
+    return User.query.filter_by(username=username).first()
 
 def load_user_groups(username):
+    # For simplicity, groups are stored in the GROUPS_FILE via CSV originally.
+    # With a DB, you might create a Group model and association table.
+    # Here we assume GROUPS_FILE is still used; you could convert it similarly.
     groups = []
     if os.path.exists(GROUPS_FILE):
         with open(GROUPS_FILE, "r") as file:
@@ -200,8 +174,8 @@ def load_user_groups(username):
     return groups
 
 def delete_group_entirely(group_name):
-    all_rows = []
     if os.path.exists(GROUPS_FILE):
+        all_rows = []
         with open(GROUPS_FILE, "r", newline="") as file:
             reader = list(csv.reader(file))
             for row in reader:
@@ -226,7 +200,6 @@ def safe_parse_timestamp(ts):
             continue
     return datetime.min
 
-# Helper functions to update username in group records and group notes.
 def update_username_in_groups(old_username, new_username):
     if os.path.exists(GROUPS_FILE):
         updated_rows = []
@@ -644,5 +617,5 @@ def download_notes():
                     headers={"Content-Disposition": f"attachment; filename={username}_notes.csv"})
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))  # Get the port from environment or default to 5000
+    port = int(os.environ.get('PORT', 5000))  # Get the port from Render environment or default to 5000
     app.run(host="0.0.0.0", port=port, debug=True)
