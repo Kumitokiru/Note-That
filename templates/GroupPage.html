@@ -110,24 +110,6 @@
       background-color: gray;  
       color: khaki !important; 
     }
-    /* Center Bar: Note Details */
-    .center-bar {
-      position: absolute;
-      width: 65vw;
-      height: 18vh;
-      left: 20vw;
-      bottom: 0;
-      background-color: #222;
-      border-top: 1px solid #555;
-      padding: 20px;
-      overflow-y: auto;
-      scrollbar-width: none;
-    }
-    .center-bar::-webkit-scrollbar { display: none; }
-    .center-bar a:hover {
-      background-color: gray;
-      color: khaki !important;
-    }
     /* Main Content: Group Header & Note Form */
     .main-content {
       position: absolute;
@@ -221,13 +203,13 @@
       input, textarea { font-size: 1.5em; width: 85%; left: 7.5%; }
       .buttons button { font-size: 0.9em; padding: 10px 15px; width: 120px; }
       .center-bar { width: 90vw; left: 5vw; height: auto; padding: 15px; }
-      
+      .center-bar button { font-size: 0.9em; padding: 10px 15px; }
     }
     @media (max-width: 480px) {
       input, textarea { font-size: 1.2em; width: 90%; left: 5%; }
       .buttons button { font-size: 0.8em; padding: 8px 12px; width: 100px; }
       .center-bar { width: 95vw; left: 2.5vw; height: auto; padding: 10px; text-align: center; }
-      
+      .center-bar button { font-size: 0.8em; padding: 8px 12px; }
     }
   </style>
 </head>
@@ -244,8 +226,7 @@
       </a>
       {% endfor %}
     </div>
-
-    <!-- Right Sidebar: Always displayed -->
+    <!-- Right Sidebar -->
     <div class="right-sidebar">
       <a href="{{ url_for('time_page', group_name=group_name) }}">
         <button class="time-log-btn">Time Log</button>
@@ -262,8 +243,12 @@
           <div>No logs yet.</div>
         {% endif %}
       </div>
+      <!-- Download Member Status Button -->
+      <form method="get" action="{{ url_for('download_member_status') }}">
+          <input type="hidden" name="group_name" value="{{ group_name }}">
+          <button type="submit" style="margin-top: 10px;">Download Member Status</button>
+      </form>
     </div>
-
     <!-- Main Content -->
     <div class="main-content">
       <div class="group-header">
@@ -283,7 +268,7 @@
           {% endfor %}
         </div>
       </div>
-      <!-- Note Form: Conditionally disable editing if not editable -->
+      <!-- Note Form -->
       <div class="note-form">
         <form method="post" action="{{ url_for('group_page', group_name=group_name) }}">
           <input type="text" name="note_title" placeholder="Note Name" value="{{ note_title }}" {% if not editable %}disabled{% endif %}>
@@ -297,7 +282,6 @@
         </form>
       </div>
     </div>
-
     <!-- Center Bar -->
     <div class="center-bar">
       <h3>Group Note Details</h3>
@@ -308,9 +292,13 @@
          {{ note.username }} - {{ note.note_title }} - {{ note.timestamp }}
       </a>
       {% endfor %}
+      <!-- Download Group Notes Button -->
+      <form method="get" action="{{ url_for('download_group_notes') }}">
+          <input type="hidden" name="group_name" value="{{ group_name }}">
+          <button type="submit" style="margin-top: 10px;">Download Group Notes</button>
+      </form>
     </div>
   </div>
-
   <script>
     function goBack() {
       window.location.href = "{{ url_for('user_page') }}";
