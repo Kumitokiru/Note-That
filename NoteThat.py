@@ -40,7 +40,6 @@ class User(db.Model):
     profile_pic = db.Column(db.String(200), default="default.png")
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100))
-    # One-to-many: one user can have many notes.
     notes = db.relationship("Note", backref="user", lazy=True)
 
 class Note(db.Model):
@@ -53,7 +52,6 @@ class Note(db.Model):
 class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
-    # Many-to-many: a group can have many users (members)
     members = db.relationship('User', secondary=group_members, backref=db.backref('groups', lazy='dynamic'))
 
 class GroupNote(db.Model):
@@ -70,6 +68,20 @@ class TimeLog(db.Model):
     group_name = db.Column(db.String(100), nullable=False)
     status = db.Column(db.String(50))
     timestamp = db.Column(db.String(100))
+
+#############################
+# File Storage Configuration
+#############################
+
+# Set the base folder to a folder named "NoteThat" on the user's Desktop.
+DESKTOP_PATH = os.path.join(os.path.expanduser("~"), "Desktop", "NoteThat")
+BASE_FOLDER = DESKTOP_PATH
+UPLOAD_FOLDER = os.path.join(BASE_FOLDER, "uploads")
+
+# Ensure necessary folders exist
+os.makedirs(BASE_FOLDER, exist_ok=True)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 #############################
 # Utility Functions
@@ -268,7 +280,6 @@ def settings():
             user = get_user_info(username)
             if user:
                 user.first_name = new_first or user.first_name
-                # If the User model had a middle_name column, update it:
                 if hasattr(user, "middle_name"):
                     user.middle_name = new_middle or user.middle_name
                 user.last_name = new_last or user.last_name
@@ -286,11 +297,9 @@ def settings():
             return redirect(url_for("settings", section="account"))
         
         elif section == "manageNotes":
-            # Note deletion and management can be handled in the /user route.
             return redirect(url_for("settings", section="manageNotes"))
         
         elif section == "manageGroups":
-            # Similarly, group management is handled via the Group model.
             return redirect(url_for("settings", section="manageGroups"))
         
         elif section == "notifications":
@@ -318,59 +327,33 @@ def settings():
 def home():
     return redirect(url_for("user_page"))
 
-@app.route("/settings", methods=["GET", "POST"])
-def settings():
-    section = request.args.get("section", "account")
-    username = session.get("username")
-    if not username:
-        return redirect(url_for("login"))
-    
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
     if request.method == "POST":
-        if section == "account":
-            new_first = request.form.get("firstName", "").strip()
-            new_middle = request.form.get("middleName", "").strip()
-            new_last = request.form.get("lastName", "").strip()
-            new_username = request.form.get("username", "").strip()
-            new_email = request.form.get("email", "").strip()
-            new_password = request.form.get("password", "").strip()
-            new_age = request.form.get("age", "").strip()
-            profile_file = request.files.get("profilePic")
-            new_profile = None
-            if profile_file and profile_file.filename:
-                new_profile = profile_file.filename
-                profile_file.save(os.path.join(app.config["UPLOAD_FOLDER"], new_profile))
-            user = get_user_info(username)
-            if user:
-                user.first_name = new_first or user.first_name
-                if hasattr(user, "middle_name"):
-                    user.middle_name = new_middle or user.middle_name
-                user.last_name = new_last or user.last_name
-                user.username = new_username or user.username
-                user.email = new_email or user.email
-                user.password = new_password or user.password
-                # Optionally update age if your model includes it.
-                if new_profile:
-                    user.profile_pic = new_profile
-                db.session.commit()
-                if new_username and new_username != username:
-                    update_username_in_group_notes(username, new_username)
-                    session["username"] = new_username
-                if new_profile:
-                    session["profile_pic"] = new_profile
-            return redirect(url_for("settings", section="account"))
-        # ... (other sections remain unchanged)
-    user_info = get_user_info(username)
-    user_notes = load_notes(username)
-    user_groups = load_user_groups(username)
-    settings_nav = ["Account", "Manage Notes", "Manage Groups", "About", "Log Out"]
-    return render_template("Settings.html",
-                           section=section,
-                           user=user_info,
-                           user_notes=user_notes,
-                           user_groups=user_groups,
-                           settings_nav=settings_nav)
-
-
+        first_name = request.form.get("txtf1", "").strip()
+        last_name = request.form.get("txtf3", "").strip()
+        username = request.form.get("txtf4", "").strip()
+        email = request.form.get("txtf5", "").strip()
+        password = request.form.get("txtf6", "").strip()
+        profile_pic = request.files.get("usrphtbtn")
+        if not first_name or not last_name or not username or not email or not password:
+            return "Error: Please fill in all required fields."
+        profile_path = "default.png"
+        if profile_pic and profile_pic.filename:
+            profile_path = profile_pic.filename
+            profile_pic.save(os.path.join(app.config["UPLOAD_FOLDER"], profile_path))
+        new_user = User(
+            username=username,
+            email=email,
+            password=password,
+            profile_pic=profile_path,
+            first_name=first_name,
+            last_name=last_name
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        return redirect(url_for("login"))
+    return render_template("Signup_Page.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -418,7 +401,6 @@ def user_page():
                 note_content = note["content"]
                 break
     highlight_note = request.args.get("highlight_note")
-    # Groups are still maintained via CSV in this version.
     groups = []
     if os.path.exists("groups.csv"):
         with open("groups.csv", "r") as file:
@@ -439,7 +421,6 @@ def user_page():
 def create_group():
     if "username" not in session:
         return redirect(url_for("login"))
-    # For simplicity, groups are still stored in a CSV file.
     all_users = load_users()
     current_user = session["username"]
     selected_members = request.form.getlist("members")
@@ -605,5 +586,6 @@ def download_notes():
                     headers={"Content-Disposition": f"attachment; filename={username}_notes.csv"})
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))  # Use Render's PORT env variable or default to 5000
+    port = int(os.environ.get('PORT', 5000))  # Use Render's PORT environment variable or default to 5000
     app.run(host="0.0.0.0", port=port, debug=True)
+
