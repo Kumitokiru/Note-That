@@ -1,84 +1,25 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
-from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
 from datetime import datetime
 import os
 import csv
 import io
 
-app = Flask(__name__)
-app.secret_key = "notethat_secret"
+# Import the app, db, and models from the separate database file.
+from database import app, db, User, Note, Group, GroupNote, TimeLog
+
 socketio = SocketIO(app, cors_allowed_origins="*")
-
-# Use PostgreSQL database from Railway, or fallback to SQLite for local testing
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///notethat.db")
-
-# Ensure compatibility with SQLAlchemy (Railway uses "postgres://", but SQLAlchemy expects "postgresql://")
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
-
-app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
-
-#############################
-# Database Models
-#############################
-
-# Association table for many-to-many relationship between Groups and Users
-group_members = db.Table('group_members',
-    db.Column('group_id', db.Integer, db.ForeignKey('group.id'), primary_key=True),
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
-)
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    email = db.Column(db.String(100), nullable=False)
-    password = db.Column(db.String(100), nullable=False)
-    profile_pic = db.Column(db.String(200), default="default.png")
-    first_name = db.Column(db.String(100))
-    last_name = db.Column(db.String(100))
-    notes = db.relationship("Note", backref="user", lazy=True)
-
-class Note(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    note_name = db.Column(db.String(200), nullable=False)
-    content = db.Column(db.Text, nullable=True)
-    timestamp = db.Column(db.String(100))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-
-class Group(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
-    members = db.relationship('User', secondary=group_members, backref=db.backref('groups', lazy='dynamic'))
-
-class GroupNote(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    group_name = db.Column(db.String(100), nullable=False)
-    username = db.Column(db.String(100), nullable=False)
-    note_title = db.Column(db.String(200), nullable=False)
-    content = db.Column(db.Text, nullable=True)
-    timestamp = db.Column(db.String(100))
-
-class TimeLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), nullable=False)
-    group_name = db.Column(db.String(100), nullable=False)
-    status = db.Column(db.String(50))
-    timestamp = db.Column(db.String(100))
 
 #############################
 # File Storage Configuration
 #############################
 
-# Set the base folder to a folder named "NoteThat" on the user's Desktop.
+# Set base folder on the Desktop
 DESKTOP_PATH = os.path.join(os.path.expanduser("~"), "Desktop", "NoteThat")
 BASE_FOLDER = DESKTOP_PATH
 UPLOAD_FOLDER = os.path.join(BASE_FOLDER, "uploads")
 
-# Ensure necessary folders exist
+# Ensure folders exist
 os.makedirs(BASE_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -90,7 +31,10 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 def current_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+#############################
 # NOTE FUNCTIONS
+#############################
+
 def save_note(username, note_title, content):
     user = User.query.filter_by(username=username).first()
     if not user:
@@ -130,7 +74,10 @@ def delete_all_notes(username):
         db.session.delete(note)
     db.session.commit()
 
+#############################
 # GROUP NOTE FUNCTIONS
+#############################
+
 def save_group_note(group_name, username, note_title, content):
     timestamp = current_timestamp()
     note = GroupNote.query.filter_by(group_name=group_name, username=username, note_title=note_title).first()
@@ -138,8 +85,7 @@ def save_group_note(group_name, username, note_title, content):
         note.content = content
         note.timestamp = timestamp
     else:
-        note = GroupNote(group_name=group_name, username=username, note_title=note_title,
-                         content=content, timestamp=timestamp)
+        note = GroupNote(group_name=group_name, username=username, note_title=note_title, content=content, timestamp=timestamp)
         db.session.add(note)
     db.session.commit()
 
@@ -153,7 +99,10 @@ def load_group_notes(group_name):
         "timestamp": n.timestamp
     } for n in notes]
 
+#############################
 # TIME LOG FUNCTIONS
+#############################
+
 def save_time_log(username, group_name, status):
     timestamp = current_timestamp()
     log = TimeLog(username=username, group_name=group_name, status=status, timestamp=timestamp)
@@ -174,14 +123,13 @@ def load_time_logs():
         })
     return result
 
+#############################
 # USER & GROUP MANAGEMENT
+#############################
+
 def load_users():
     users = User.query.all()
-    return [{
-        "username": u.username,
-        "email": u.email,
-        "profile_pic": u.profile_pic
-    } for u in users]
+    return [{"username": u.username, "email": u.email, "profile_pic": u.profile_pic} for u in users]
 
 def get_user_info(username):
     return User.query.filter_by(username=username).first()
@@ -219,7 +167,10 @@ def update_username_in_group_notes(old_username, new_username):
         note.username = new_username
     db.session.commit()
 
+#############################
 # LANGUAGE & THEME HELPERS
+#############################
+
 def load_options(filepath):
     options = []
     if os.path.exists(filepath):
@@ -402,6 +353,7 @@ def user_page():
                 break
     highlight_note = request.args.get("highlight_note")
     groups = []
+    # This example uses a CSV file for groups; you may want to switch to a database model.
     if os.path.exists("groups.csv"):
         with open("groups.csv", "r") as file:
             reader = csv.reader(file)
@@ -586,6 +538,5 @@ def download_notes():
                     headers={"Content-Disposition": f"attachment; filename={username}_notes.csv"})
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))  # Use Render's PORT environment variable or default to 5000
+    port = int(os.environ.get('PORT', 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
