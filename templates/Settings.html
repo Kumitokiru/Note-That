@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings - Note That</title>
+  <style>
+    body {
+      background-color: #333;
+      color: rgb(255, 255, 255);
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+
+    /* Navigation Links */
+    nav a {
+      color: rgb(255, 255, 255);
+      text-decoration: none;
+      font-size: 20px;
+      margin-right: 15px;
+      transition: transform 0.3s ease, color 0.3s ease;
+    }
+    nav a:hover {
+      transform: translateX(5px);
+      color: khaki;
+    }
+
+    /* Back to Home Link */
+    .back-link {
+      color: rgb(255, 255, 255);
+      text-decoration: none;
+      font-size: 20px;
+      display: inline-block;
+      margin-bottom: 20px;
+      transition: transform 0.3s ease, color 0.3s ease;
+    }
+    .back-link:hover {
+      transform: translateX(-5px);
+      color: khaki;
+    }
+
+    /* Section Container */
+    .section {
+      background-color: #444;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 5px;
+    }
+
+    label {
+      display: inline-block;
+      width: 150px;
+      margin-top: 10px;
+      font-size: 20px;
+    }
+
+    input, select, textarea {
+      padding: 5px;
+      margin-top: 10px;
+      width: 250px;
+      background-color: gray;
+      border: 1px solid #666;
+      color: white;
+    }
+
+    button {
+      padding: 8px 15px;
+      margin-top: 15px;
+      background-color: #555;
+      border: none;
+      color: white;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 18px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    button:hover {
+      background-color: gray;
+      color: khaki;
+    }
+
+    /* Profile Picture */
+    .profile-pic {
+      margin-bottom: 15px;
+    }
+    .profile-pic img {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Back to Home link with animation -->
+  <a href="{{ url_for('user_page') }}" class="back-link">← Back to Home</a>
+
+  <h1>Settings</h1>
+
+  <!-- Navigation -->
+  <nav>
+    <a href="{{ url_for('settings', section='account') }}">Account</a>
+    <a href="{{ url_for('settings', section='manageNotes') }}">Manage Notes</a>
+    <a href="{{ url_for('settings', section='manageGroups') }}">Manage Groups</a>
+    <a href="{{ url_for('settings', section='about') }}">About</a>
+    <a href="{{ url_for('settings', section='logout') }}">Log Out</a>
+  </nav>
+  <hr>
+
+  {% if section == 'account' %}
+  <!-- Account Settings with Increased Size -->
+  <div class="section">
+    <div class="profile-pic">
+      <img src="{{ url_for('static', filename='uploads/' ~ user.profile_pic) }}" 
+           style="color:rgb(255, 255, 255);" alt="Profile Picture">
+    </div>
+    <form method="post" action="{{ url_for('settings', section='account') }}" 
+          style="color:rgb(255, 255, 255);" enctype="multipart/form-data">
+      <label>Username:</label>
+      <input type="text" name="username" value="{{ user.username }}" style="width:350px; font-size:18px; color:rgb(255,255,255); border-radius:10px;" required><br>
+
+      <label>Profile Photo:</label>
+      <input type="file" name="profilePic" style="width:350px;"><br>
+      <label>First Name:</label>
+      <input type="text" name="firstName" value="{{ user.first_name }}" style="width:350px; font-size:18px; color:rgb(255,255,255); border-radius:10px;" required><br>
+      <label>Middle Name:</label>
+      <input type="text" name="middleName" value="{{ user.middle_name }}" style="width:350px; font-size:18px; color:rgb(255,255,255); border-radius:10px;"><br>
+      <label>Last Name:</label>
+      <input type="text" name="lastName" value="{{ user.last_name }}" style="width:350px; font-size:18px; color:rgb(255,255,255); border-radius:10px;" required><br>
+      <label>Email:</label>
+      <input type="email" name="email" value="{{ user.email }}" style="width:350px; font-size:18px; color:rgb(255,255,255); border-radius:10px;" required><br>
+      <label>Password:</label>
+      <input type="password" name="password" value="{{ user.password }}" style="width:350px; font-size:18px; color:rgb(255,255,255); border-radius:10px;" required><br>
+      <label>Age:</label>
+      <input type="text" name="age" value="{{ user.age }}" style="width:350px; font-size:18px; color:rgb(255,255,255); border-radius:10px;"><br>
+      
+      <button type="submit" style="font-size:18px; padding:10px 20px;">Update Account</button>
+    </form>
+  </div>
+
+  {% elif section == 'manageNotes' %}
+  <div class="section">
+    <h2>Manage Notes</h2>
+    <form method="post" action="{{ url_for('settings', section='manageNotes') }}">
+      {% for note in user_notes %}
+      <div>
+        <input type="checkbox" name="selected_notes" value="{{ note.name }}">
+        <label>{{ note.name }} - Last Updated: {{ note.timestamp }}</label>
+      </div>
+      {% endfor %}
+      <button type="submit" name="delete_selected">Delete</button>
+      <button type="submit" name="delete_all">Delete All</button>
+    </form>
+  </div>
+
+  {% elif section == 'manageGroups' %}
+  <div class="section">
+    <h2>Manage Groups</h2>
+    <form method="post" action="{{ url_for('settings', section='manageGroups') }}">
+      {% for group in user_groups %}
+      <div>
+        <input type="checkbox" name="selected_groups" value="{{ group.name }}">
+        <label>{{ group.name }}</label>
+      </div>
+      {% endfor %}
+      <button type="submit" name="delete_selected">Delete</button>
+      <button type="submit" name="delete_all">Delete All</button>
+    </form>
+  </div>
+
+  {% elif section == 'about' %}
+  <div class="section">
+    <h2 style="color:rgb(255, 255, 255);">About</h2>
+    <p style="color:rgb(255, 255, 255); font-size: 30px;">
+       Note That
+    </p>
+    <p style="color:rgb(255, 255, 255); font-size: 30px;">
+      Developer: Paul Vincent Castillo
+    </p>
+    <p style="color:rgb(255, 255, 255); font-size: 30px;">
+      © 2025 Vince Castillo. All Rights Reserved
+    </p>
+    <p style="color:rgb(255, 255, 255); font-size: 30px;">
+      Version: 1.1.01.2.5
+    </p>
+  </div>
+
+  {% elif section == 'logout' %}
+  <div class="section">
+    <form method="post" action="{{ url_for('settings', section='logout') }}">
+      <button type="submit">Log Out</button>
+    </form>
+  </div>
+  {% endif %}
+
+</body>
+</html>
