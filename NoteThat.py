@@ -1,197 +1,288 @@
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
 import os
-import datetime
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response
-from flask_socketio import SocketIO
-import gspread
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from flask_socketio import SocketIO, join_room
+from datetime import datetime
+import io
+import csv
+from werkzeug.security import generate_password_hash, check_password_hash
 
+# Initialize Flask app and SocketIO
 app = Flask(__name__)
-app.secret_key = "notethat_secret"
-socketio = SocketIO(app, cors_allowed_origins="*")
+app.secret_key = "notethat_secret"  # Should be a strong, random key in production
+socketio = SocketIO(app, cors_allowed_origins="*")  # Allow all origins for development
 
-#######################################
-# Google API Setup for Sheets & Drive
-#######################################
+# In-memory storage (consider replacing with a database like SQLite in production)
+USERS = []
+NOTES = []
+GROUP_NOTES = []
+TIME_LOGS = []
+UPLOAD_FOLDER = "static/uploads"
+GROUPS = []  # Global groups storage for all users
 
-# Define API scopes for Google Sheets and Drive
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
+# Ensure upload folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# Load service account credentials from file
-creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
+### Utility Functions ###
 
-# Initialize Google Sheets client (gspread)
-gs_client = gspread.authorize(creds)
+# User Management
+def save_user(first_name, middle_name, last_name, username, email, password, profile_pic):
+    """Save a new user with hashed password."""
+    hashed_password = generate_password_hash(password)
+    user = {
+        "first_name": first_name,
+        "middle_name": middle_name,
+        "last_name": last_name,
+        "username": username,
+        "email": email,
+        "password": hashed_password,  # Store hashed password
+        "profile_pic": profile_pic
+    }
+    USERS.append(user)
 
-# Open spreadsheets by URL (use your provided links)
-USERS_SHEET = gs_client.open_by_url("https://docs.google.com/spreadsheets/d/1CawuBeZm_EHKj2wOcULfluuTLMJP1KzGLQv_azBOZmE/edit?usp=sharing").sheet1
-GROUPS_SHEET = gs_client.open_by_url("https://docs.google.com/spreadsheets/d/1Mn-X01ot9bv1rk2uRLqIpO5pW-ka1o9RNUts9V0nn6c/edit?usp=sharing").sheet1
-NOTES_SHEET = gs_client.open_by_url("https://docs.google.com/spreadsheets/d/1ByERqCAUyC0Bw42XDbJkKl4Zhk1SMdUiAxTrxdrHABk/edit?usp=sharing").sheet1
-TIME_LOG_SHEET = gs_client.open_by_url("https://docs.google.com/spreadsheets/d/18RQhzRNSLJhKeFVrhQVT6WnsflYdHnbo5tNNjKKT29Q/edit?usp=sharing").sheet1
-GROUP_NOTES_SHEET = gs_client.open_by_url("https://docs.google.com/spreadsheets/d/1bfKr_-2cwDk0_HT2fLyoG96My07N4ehNVs8esaXpWk0/edit?usp=sharing").sheet1
+def get_user_info(username):
+    """Retrieve user info by username."""
+    return next((user for user in USERS if user["username"] == username), None)
 
-# Initialize Google Drive API client
-drive_service = build("drive", "v3", credentials=creds)
-# Extract the folder ID from your Uploads link:
-# Example link: https://drive.google.com/drive/folders/1qagsZ601ppNzY5xdwah1Nd4elo_gi_QE?usp=sharing
-UPLOADS_FOLDER_ID = "1qagsZ601ppNzY5xdwah1Nd4elo_gi_QE"
-
-#######################################
-# Utility Functions
-#######################################
-
-def current_timestamp():
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-#######################################
-# Google Sheets Functions (Replace CSV)
-#######################################
-
-# --- Users ---
-def save_user_to_sheet(first_name, last_name, username, email, password, profile_pic):
-    # Append a new row; assume header row is already set in the sheet
-    USERS_SHEET.append_row([first_name, "", last_name, username, email, password, profile_pic, ""])
-
-def get_user_from_sheet(email, password):
-    records = USERS_SHEET.get_all_records()
-    for row in records:
-        if row["email"] == email and row["password"] == password:
-            return row  # returns a dict with keys: first_name, last_name, username, etc.
-    return None
-
-def update_user_in_sheet(username, new_data):
-    # This is a simple approach: read all records, update in memory, then clear and rewrite the sheet.
-    records = USERS_SHEET.get_all_records()
-    USERS_SHEET.clear()
-    # Write header back (assuming header order as below)
-    header = ["first_name", "middle_name", "last_name", "username", "email", "password", "profile_pic", "age"]
-    USERS_SHEET.append_row(header)
-    for row in records:
-        if row["username"] == username:
-            row.update(new_data)
-        USERS_SHEET.append_row([row["first_name"], row.get("middle_name", ""), row["last_name"],
-                                 row["username"], row["email"], row["password"], row["profile_pic"], row.get("age", "")])
-
-# --- Notes ---
+# Note Functions
 def save_note(username, note_name, content):
-    timestamp = current_timestamp()
-    NOTES_SHEET.append_row([username, note_name, content, timestamp])
+    """Save or update a user's note with a timestamp."""
+    timestamp = datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
+    for note in NOTES:
+        if note["username"] == username and note["note_title"] == note_name:
+            note["content"] = content
+            note["timestamp"] = timestamp
+            return timestamp  # Return the updated timestamp
+    NOTES.append({
+        "username": username,
+        "note_title": note_name,
+        "content": content,
+        "timestamp": timestamp
+    })
+    return timestamp  # Return the new timestamp
+    
 
 def load_notes(username):
-    records = NOTES_SHEET.get_all_records()
-    return [row for row in records if row["username"] == username]
+    """Load all notes for a user."""
+    return [note for note in NOTES if note["username"] == username]
 
-def delete_note(username, note_name):
-    records = NOTES_SHEET.get_all_records()
-    NOTES_SHEET.clear()
-    header = ["username", "note_name", "content", "timestamp"]
-    NOTES_SHEET.append_row(header)
-    for row in records:
-        if not (row["username"] == username and row["note_name"] == note_name):
-            NOTES_SHEET.append_row([row["username"], row["note_name"], row["content"], row["timestamp"]])
-
-def delete_all_notes(username):
-    records = NOTES_SHEET.get_all_records()
-    NOTES_SHEET.clear()
-    header = ["username", "note_name", "content", "timestamp"]
-    NOTES_SHEET.append_row(header)
-    for row in records:
-        if row["username"] != username:
-            NOTES_SHEET.append_row([row["username"], row["note_name"], row["content"], row["timestamp"]])
-
-# --- Groups ---
-def save_group(group_name, members):
-    # Save group row: first cell group name, rest are member usernames.
-    GROUPS_SHEET.append_row([group_name] + members)
-
-def load_groups_for_user(username):
-    records = GROUPS_SHEET.get_all_records()
-    groups = []
-    for row in records:
-        # Assume first column is group name and subsequent columns are member usernames.
-        members = [row[key] for key in row if key != "" and row[key] != ""]
-        if username in members:
-            groups.append({"name": row["group_name"], "members": members[1:]})
-    return groups
-
-# --- Time Log ---
-def save_time_log(username, group_name, status):
-    timestamp = current_timestamp()
-    TIME_LOG_SHEET.append_row([username, group_name, status, timestamp])
-    return timestamp
-
-def load_time_logs():
-    records = TIME_LOG_SHEET.get_all_records()
-    logs = {}
-    for row in records:
-        gname = row["group_name"]
-        if gname not in logs:
-            logs[gname] = []
-        logs[gname].append({"username": row["username"], "status": row["status"], "timestamp": row["timestamp"]})
-    return logs
-
-# --- Group Notes ---
+# Group Note Functions
 def save_group_note(group_name, username, note_title, content):
-    timestamp = current_timestamp()
-    GROUP_NOTES_SHEET.append_row([group_name, username, note_title, content, timestamp])
+    """Save or update a group note with a timestamp."""
+    timestamp = datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
+    for note in GROUP_NOTES:
+        if note["group_name"] == group_name and note["username"] == username and note["note_title"] == note_title:
+            note["content"] = content
+            note["timestamp"] = timestamp
+            return
+    GROUP_NOTES.append({
+        "group_name": group_name,
+        "username": username,
+        "note_title": note_title,
+        "content": content,
+        "timestamp": timestamp
+    })
 
 def load_group_notes(group_name):
-    records = GROUP_NOTES_SHEET.get_all_records()
-    return [row for row in records if row["group_name"] == group_name]
+    """Load all notes for a group."""
+    return [note for note in GROUP_NOTES if note["group_name"] == group_name]
 
-#######################################
-# Google Drive Function for Uploads
-#######################################
+# Time Log Functions
+def save_time_log(username, group_name, status):
+    """Save a time log entry with a timestamp."""
+    timestamp = datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
+    TIME_LOGS.append({"username": username, "group_name": group_name, "status": status, "timestamp": timestamp})
+    return timestamp
 
-def upload_to_drive(file_path, file_name):
-    file_metadata = {
-        "name": file_name,
-        "parents": [UPLOADS_FOLDER_ID]
-    }
-    media = MediaFileUpload(file_path, mimetype="image/png")  # Change mimetype as needed
-    file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-    return f"https://drive.google.com/uc?id={file['id']}"
+def load_time_logs(group_name=None):
+    """Load all time logs, optionally filtered by group."""
+    if group_name:
+        return [log for log in TIME_LOGS if log["group_name"] == group_name]
+    return TIME_LOGS
 
-#######################################
-# Routes (Example for Signup, Login, Notes, etc.)
-#######################################
+# Search, Sort, and Filter Functions
+def search_items(items, query, key):
+    """Search items by a query string."""
+    if not query:
+        return items
+    query = query.lower()
+    return [item for item in items if query in item[key].lower()]
+
+def sort_items(items, sort_by, key="timestamp"):
+    if not sort_by:
+        return items
+    if sort_by == "newest":
+        return sorted(items, key=lambda x: datetime.strptime(x[key], "%I:%M:%S %p %Y-%m-%d"), reverse=True)
+    elif sort_by == "oldest":
+        return sorted(items, key=lambda x: datetime.strptime(x[key], "%I:%M:%S %p %Y-%m-%d"))
+    return items
+
+
+def filter_by_date_range(items, start_date, end_date, key="timestamp"):
+    """Filter items by a date range."""
+    if not start_date or not end_date:
+        return items
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        return [item for item in items if start <= datetime.strptime(item[key], "%I:%M:%S %p %Y-%m-%d") <= end]
+    except ValueError:
+        return items  # Return unfiltered if date format is invalid
+
+# CSV Generation
+def generate_csv(data, headers, filename):
+    """Generate a CSV file from data and send it as a download."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    for row in data:
+        writer.writerow([row.get(h.lower().replace(" ", "_"), "") for h in headers])
+    output.seek(0)
+    return send_file(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=filename
+    )
+
+# Group Management
+def load_user_groups(username):
+    """Load all groups a user belongs to from the global GROUPS list."""
+    return [g for g in GROUPS if username in g["members"]]
+
+def update_username_in_groups(old_username, new_username):
+    """Update a username in all group memberships stored in the global GROUPS list."""
+    for group in GROUPS:
+        if old_username in group["members"]:
+            group["members"] = [new_username if m == old_username else m for m in group["members"]]
+
+def update_username_in_group_notes(old_username, new_username):
+    """Update a username in all group notes."""
+    for note in GROUP_NOTES:
+        if note["username"] == old_username:
+            note["username"] = new_username
+
+
+
+@app.after_request
+def add_header(response):
+    """Prevent caching of responses."""
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, public, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
+
+### Routes ###
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    """Handle user settings, including account updates and logout."""
+    section = request.args.get("section", "account")
+    username = session.get("username")
+    if not username:
+        return redirect(url_for("login"))
+    
+    # Use the user info stored during login
+    user_info = session.get("user_info", get_user_info(username))
+    
+    if request.method == "POST":
+        if section == "account":
+            try:
+                new_first = request.form.get("firstName", "").strip()
+                new_middle = request.form.get("middleName", "").strip()
+                new_last = request.form.get("lastName", "").strip()
+                new_username = request.form.get("username", "").strip()
+                new_email = request.form.get("email", "").strip()
+                new_password = request.form.get("password", "").strip()
+                profile_file = request.files.get("profilePic")
+                
+                if profile_file and profile_file.filename:
+                    profile_path = os.path.join(app.config["UPLOAD_FOLDER"], profile_file.filename)
+                    profile_file.save(profile_path)
+                    user_info["profile_pic"] = profile_file.filename
+                    session["profile_pic"] = profile_file.filename
+                
+                user_info.update({
+                    "first_name": new_first or user_info["first_name"],
+                    "middle_name": new_middle or user_info["middle_name"],
+                    "last_name": new_last or user_info["last_name"],
+                    "username": new_username or user_info["username"],
+                    "email": new_email or user_info["email"],
+                    "password": generate_password_hash(new_password) if new_password else user_info["password"]
+                })
+                
+                # Update session with new info
+                session["user_info"] = user_info
+                
+                if new_username and new_username != username:
+                    update_username_in_groups(username, new_username)
+                    update_username_in_group_notes(username, new_username)
+                    session["username"] = new_username
+                
+                return redirect(url_for("settings", section="account"))
+            except Exception as e:
+                return f"Error updating account: {str(e)}"
+        
+        elif section == "notifications":
+            notif = request.form.get("notifToggle", "disabled")
+            session["notifications"] = notif
+            return redirect(url_for("settings", section="notifications"))
+        
+        elif section == "logout":
+            session.clear()
+            return redirect(url_for("login"))
+    
+    user_notes = load_notes(username)
+    user_groups = load_user_groups(username)
+    settings_nav = ["Account", "Manage Notes", "Manage Groups", "About", "Log Out"]
+    
+    return render_template("Settings.html",
+                           section=section,
+                           user=user_info,
+                           user_notes=user_notes,
+                           user_groups=user_groups,
+                           settings_nav=settings_nav)
+
+@app.route("/")
+def home():
+    """Redirect to the user page."""
+    return redirect(url_for("user_page"))
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
+    """Handle user signup."""
     if request.method == "POST":
-        first_name = request.form.get("txtf1", "").strip()
-        last_name = request.form.get("txtf3", "").strip()
-        username = request.form.get("txtf4", "").strip()
-        email = request.form.get("txtf5", "").strip()
-        password = request.form.get("txtf6", "").strip()
-        profile_file = request.files.get("usrphtbtn")
-        if not first_name or not last_name or not username or not email or not password:
-            return "Error: Please fill in all required fields."
-        profile_pic = "default.png"
-        if profile_file and profile_file.filename:
-            # Save temporarily then upload to Drive
-            temp_path = os.path.join("/tmp", profile_file.filename)
-            profile_file.save(temp_path)
-            profile_pic = upload_to_drive(temp_path, profile_file.filename)
-            os.remove(temp_path)
-        # Save user data in Google Sheet
-        save_user_to_sheet(first_name, last_name, username, email, password, profile_pic)
-        return redirect(url_for("login"))
+        try:
+            first_name = request.form.get("txtf1", "").strip()
+            middle_name = request.form.get("txtf2", "").strip()
+            last_name = request.form.get("txtf3", "").strip()
+            username = request.form.get("txtf4", "").strip()
+            email = request.form.get("txtf5", "").strip()
+            password = request.form.get("txtf6", "").strip()
+            profile_pic = request.files.get("usrphtbtn")
+            if not all([first_name, last_name, username, email, password]):
+                return "Error: Please fill in all required fields."
+            profile_path = "default.png"
+            if profile_pic and profile_pic.filename:
+                profile_path = profile_pic.filename
+                profile_pic.save(os.path.join(app.config["UPLOAD_FOLDER"], profile_path))
+            save_user(first_name, middle_name, last_name, username, email, password, profile_path)
+            return redirect(url_for("login"))
+        except Exception as e:
+            return f"Error during signup: {str(e)}"
     return render_template("Signup_Page.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    """Handle user login with password verification."""
     if request.method == "POST":
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "").strip()
-        user = get_user_from_sheet(email, password)
-        if user:
+        user = next((u for u in USERS if u["email"] == email), None)
+        if user and check_password_hash(user["password"], password):
             session["username"] = user["username"]
             session["profile_pic"] = user["profile_pic"]
+            # Store complete user info in session for later use
+            session["user_info"] = user
             return redirect(url_for("user_page"))
         return "Error: Invalid email or password"
     return render_template("Login_Page.html")
@@ -201,37 +292,123 @@ def user_page():
     if "username" not in session:
         return redirect(url_for("login"))
     username = session["username"]
-    # For profile picture, assume stored drive link
-    profile_pic = session.get("profile_pic", url_for("static", filename="uploads/default.png"))
+    profile_pic = url_for("static", filename=f"uploads/{session['profile_pic']}") if "profile_pic" in session else url_for("static", filename="uploads/default.png")
     saved_notes = load_notes(username)
     note_title, note_content = "", ""
+    
     if request.method == "POST":
         if "save_note" in request.form:
             note_title = request.form.get("note_title", "").strip()
             note_content = request.form.get("note_content", "").strip()
             if note_title:
-                save_note(username, note_title, note_content)
+                timestamp = save_note(username, note_title, note_content)
+                # Get the updated list of saved notes to update the left sidebar
+                updated_notes = load_notes(username)
+                # Emit an event with the entire saved_notes list along with the new note's title and timestamp
+                socketio.emit('update_notes', {
+                    'saved_notes': updated_notes,
+                    'note_title': note_title,
+                    'timestamp': timestamp
+                }, room=username)
                 return redirect(url_for("user_page", selected_note=note_title))
-        # Handle deletion similarly...
+        elif "new_note" in request.form:
+            return redirect(url_for("user_page"))
+        elif "all_notes" in request.form:
+            return redirect(url_for("all_notes"))
+    
     selected_note = request.args.get("selected_note")
     if selected_note:
         for note in saved_notes:
-            if note["note_name"] == selected_note:
-                note_title = note["note_name"]
+            if note["note_title"] == selected_note:
+                note_title = note["note_title"]
                 note_content = note["content"]
                 break
-    # For groups, you could load from GROUPS_SHEET similarly.
-    groups = []  # (Implement as needed)
+    highlight_note = request.args.get("highlight_note")
+    groups = load_user_groups(username)
     return render_template("UserPage.html",
                            username=username,
                            profile_pic=profile_pic,
                            saved_notes=saved_notes,
                            note_title=note_title,
                            note_content=note_content,
-                           groups=groups)
+                           highlight_note=highlight_note,
+                           groups=groups,
+                           )
+
+@app.route("/all_notes", methods=["GET", "POST"])
+def all_notes():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    username = session["username"]
+    notes = load_notes(username)
+    
+    # Check for sort parameter in GET request
+    sort_by = request.args.get("sort")
+    if sort_by:
+        notes = sort_items(notes, sort_by)
+    
+    if request.method == "POST":
+        if "search" in request.form:
+            search_query = request.form.get("searchInput", "")
+            notes = search_items(notes, search_query, "note_title")
+        elif "show" in request.form:
+            start_date = request.form.get("input1", "")
+            end_date = request.form.get("input2", "")
+            notes = filter_by_date_range(notes, start_date, end_date)
+        elif "download" in request.form:
+            return generate_csv(notes, ["Note Title", "Content", "Timestamp"], "user_notes.csv")
+        elif "back" in request.form:
+            return redirect(url_for("user_page"))
+    
+    return render_template("AllUserNotes.html", notes=notes)
+
+
+@app.route("/create_group", methods=["GET", "POST"])
+def create_group():
+    """Handle group creation with user search and addition."""
+    if "username" not in session:
+        return redirect(url_for("login"))
+    all_users = USERS
+    current_user = session["username"]
+    selected_members = request.form.getlist("members")
+    if current_user not in selected_members:
+        selected_members.insert(0, current_user)
+    group_name = request.form.get("group_name", "")
+    search_query = request.form.get("search_query", "")
+    search_results = []
+    if request.method == "POST":
+        if "search" in request.form:
+            if search_query:
+                search_results = [u for u in all_users if search_query.lower() in u["username"].lower()]
+        elif "add_user" in request.form:
+            user_to_add = request.form.get("add_user")
+            if user_to_add and user_to_add not in selected_members:
+                selected_members.append(user_to_add)
+        elif "create_group" in request.form:
+            if selected_members:
+                # Append group data to the global GROUPS list
+                GROUPS.append({"name": group_name, "members": selected_members})
+                return redirect(url_for("group_page", group_name=group_name))
+    user_dict = {u["username"]: u for u in all_users}
+    return render_template("CreateGroup.html",
+                           group_name=group_name,
+                           selected_members=selected_members,
+                           search_query=search_query,
+                           search_results=search_results,
+                           user_dict=user_dict,
+                           )
+
+@app.route("/search_user")
+def search_user():
+    """API endpoint to search users by username."""
+    query = request.args.get("q", "").lower()
+    users = USERS
+    filtered_users = [u for u in users if query in u["username"].lower()]
+    return jsonify(filtered_users)
 
 @app.route("/time_page", methods=["GET", "POST"])
 def time_page():
+    """Handle clock in/out for a group."""
     if "username" not in session:
         return redirect(url_for("login"))
     username = session["username"]
@@ -240,25 +417,42 @@ def time_page():
         return redirect(url_for("user_page"))
     if request.method == "POST":
         if request.form.get("clock_in"):
-            save_time_log(username, group_name, "Clock In")
+            status = "Clock In"
+            save_time_log(username, group_name, status)
         elif request.form.get("clock_out"):
-            save_time_log(username, group_name, "Clock Out")
+            status = "Clock Out"
+            save_time_log(username, group_name, status)
         return redirect(url_for("group_page", group_name=group_name))
-    return render_template("TimePage.html", username=username)
+    return render_template("TimePage.html", username=username,)
 
 @app.route("/group_page", methods=["GET", "POST"])
 def group_page():
+    """Main group page for note management and time logs."""
     if "username" not in session:
         return redirect(url_for("login"))
     group_name = request.args.get("group_name") or request.form.get("group_name")
     if not group_name:
         return redirect(url_for("user_page"))
-    # Load group members and group notes from GROUPS_SHEET and GROUP_NOTES_SHEET respectively
-    # (Implementation will depend on how you structure your sheets.)
-    group_members = []  # (Implement as needed)
+    # Load the group from the global GROUPS list
+    group = next((g for g in GROUPS if g["name"] == group_name), None)
+    if not group:
+        return redirect(url_for("user_page"))
+    group_members = group["members"]
+    all_users = USERS
+    group_members_details = [u for u in all_users if u["username"] in group_members]
     group_notes = load_group_notes(group_name)
-    logs = load_time_logs().get(group_name, [])
-    note_title, note_content = "", ""
+    time_logs = load_time_logs(group_name)
+    time_logs.sort(key=lambda x: datetime.strptime(x["timestamp"], "%I:%M:%S %p %Y-%m-%d"))
+    current_status = {}
+    for member in group_members_details:
+        member_logs = [log for log in time_logs if log["username"] == member["username"]]
+        if member_logs:
+            current_status[member["username"]] = member_logs[-1]["status"]
+        else:
+            current_status[member["username"]] = "Clock In"
+    note_title = ""
+    note_content = ""
+    editable = True
     if request.method == "POST":
         if "save_note" in request.form:
             note_title = request.form.get("note_title", "").strip()
@@ -270,27 +464,112 @@ def group_page():
                     'note': {
                         'username': session["username"],
                         'note_title': note_title,
-                        'timestamp': current_timestamp()
+                        'timestamp': datetime.now().strftime("%I:%M:%S %p %Y-%m-%d")
                     }
                 })
                 return redirect(url_for("group_page", group_name=group_name, selected_note=note_title))
         elif "new_note" in request.form:
             return redirect(url_for("group_page", group_name=group_name))
+        elif "member_notes" in request.form:
+            return redirect(url_for("all_member_notes", group_name=group_name))
+        elif "member_logs" in request.form:
+            return redirect(url_for("time_logs", group_name=group_name))
     selected_note = request.args.get("selected_note")
     if selected_note:
         for note in group_notes:
             if note["note_title"] == selected_note:
                 note_title = note["note_title"]
                 note_content = note["content"]
+                editable = (note["username"] == session["username"])
                 break
     return render_template("GroupPage.html",
                            group_name=group_name,
-                           group_members=group_members,
+                           group_members=group_members_details,
                            group_notes=group_notes,
                            note_title=note_title,
                            note_content=note_content,
-                           logs=logs)
+                           selected_note=selected_note,
+                           logs=time_logs,
+                           current_status=current_status,
+                           editable=editable,
+                           )
+
+@app.route("/all_member_notes", methods=["GET", "POST"])
+def all_member_notes():
+    """Display all group notes with search, sort, and filter options."""
+    if "username" not in session:
+        return redirect(url_for("login"))
+    group_name = request.args.get("group_name", "")
+    if not group_name:
+        return redirect(url_for("user_page"))
+    
+    notes = load_group_notes(group_name)
+    
+    # Check for sort parameter in GET request
+    sort_by = request.args.get("sort")
+    if sort_by:
+        notes = sort_items(notes, sort_by)
+    
+    if request.method == "POST":
+        if "search" in request.form:
+            search_query = request.form.get("searchInput", "")
+            notes = search_items(notes, search_query, "note_title")
+        elif "sort" in request.form:
+            sort_by = request.form.get("sort")
+            notes = sort_items(notes, sort_by)
+        elif "show" in request.form:
+            start_date = request.form.get("input1", "")
+            end_date = request.form.get("input2", "")
+            notes = filter_by_date_range(notes, start_date, end_date)
+        elif "download" in request.form:
+            return generate_csv(notes, ["Member Name", "Note Title", "Content", "Timestamp"], "member_notes.csv")
+        elif "back" in request.form:
+            return redirect(url_for("group_page", group_name=group_name))
+    
+    return render_template("AllMemberNotes.html", notes=notes, group_name=group_name)
+
+
+@app.route("/time_logs", methods=["GET", "POST"])
+def time_logs():
+    """Display group time logs with search, sort, and filter options."""
+    if "username" not in session:
+        return redirect(url_for("login"))
+    group_name = request.args.get("group_name", "")
+    if not group_name:
+        return redirect(url_for("user_page"))
+    logs = load_time_logs(group_name)
+    
+    # Check for sort parameter in GET request
+    sort_by = request.args.get("sort")
+    if sort_by:
+        logs = sort_items(logs, sort_by)
+    
+    if request.method == "POST":
+        if "search" in request.form:
+            search_query = request.form.get("searchInput", "")
+            logs = search_items(logs, search_query, "username")
+        elif "sort" in request.form:
+            sort_by = request.form.get("sort")
+            logs = sort_items(logs, sort_by)
+        elif "show" in request.form:
+            start_date = request.form.get("input1", "")
+            end_date = request.form.get("input2", "")
+            logs = filter_by_date_range(logs, start_date, end_date)
+        elif "download" in request.form:
+            return generate_csv(logs, ["Member Name", "Status", "Timestamp"], "time_logs.csv")
+        elif "back" in request.form:
+            return redirect(url_for("group_page", group_name=group_name))
+    
+    return render_template("TimeLog_Page.html", logs=logs, group_name=group_name)
+
+
+
+@socketio.on('join')
+def on_join(data):
+    username = data['username']
+    join_room(username)
+    print(f"{username} has joined their room")
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))  # Get the port from Render environment or default to 5000
-    app.run(host="0.0.0.0", port=port, debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host="0.0.0.0", port=port, debug=True)
