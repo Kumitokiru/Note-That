@@ -221,17 +221,83 @@
             
             color: khaki !important; 
         }
-        @media (max-width: 768px) {
-            input, textarea { font-size: 1.5em; width: 85%; left: 7.5%; }
-            .buttons button { font-size: 0.9em; padding: 10px 15px; width: 120px; }
-            .center-bar { width: 90vw; left: 5vw; height: auto; padding: 15px; }
-            .center-bar button { font-size: 0.9em; padding: 10px 15px; }
+        /* For large desktop screens (above 1200px, no media query needed for default styles) */
+        input, textarea {
+            font-size: 2em;
+            width: 75%;
+            margin: 0 auto;
         }
-        @media (max-width: 480px) {
-            input, textarea { font-size: 1.2em; width: 90%; left: 5%; }
-            .buttons button { font-size: 0.8em; padding: 8px 12px; width: 100px; }
-            .center-bar { width: 95vw; left: 2.5vw; height: auto; padding: 10px; text-align: center; }
-            .center-bar button { font-size: 0.8em; padding: 8px 12px; }
+        
+        /* Laptop screens (max-width: 1200px) */
+        @media (max-width: 1200px) {
+            input, textarea {
+            font-size: 1.8em;
+            width: 80%;
+            left: 10%;
+            }
+            .buttons button {
+            font-size: 1em;
+            padding: 12px 18px;
+            width: 130px;
+            }
+            .center-bar {
+            width: 85vw;
+            left: 7.5vw;
+            height: auto;
+            padding: 20px;
+            }
+            .center-bar button {
+            font-size: 1em;
+            padding: 12px 18px;
+            }
+        }
+        
+        /* Tablet screens (max-width: 992px) */
+        @media (max-width: 992px) {
+            input, textarea {
+            font-size: 1.6em;
+            width: 83%;
+            left: 8.5%;
+            }
+            .buttons button {
+            font-size: 0.95em;
+            padding: 11px 16px;
+            width: 125px;
+            }
+            .center-bar {
+            width: 88vw;
+            left: 6vw;
+            height: auto;
+            padding: 18px;
+            }
+            .center-bar button {
+            font-size: 0.95em;
+            padding: 11px 16px;
+            }
+        }
+        
+        /* Medium devices (small tablets and large mobiles, max-width: 768px) */
+        @media (max-width: 768px) {
+            input, textarea {
+            font-size: 1.5em;
+            width: 85%;
+            left: 7.5%;
+            }
+            .buttons button {
+            font-size: 0.9em;
+            padding: 10px 15px;
+            width: 120px;
+            }
+            .center-bar {
+            width: 90vw;
+            left: 5vw;
+            height: auto;
+            padding: 15px;
+            }
+            .center-bar button {
+            font-size: 0.9em;
+            padding: 10px 15px;
+            }
         }
     </style>
 </head>
