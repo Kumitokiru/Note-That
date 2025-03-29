@@ -252,17 +252,98 @@
       color: khaki;
     }
     .buttons button:hover { background-color: gray; color: khaki; }
-    @media (max-width: 768px) {
-      input, textarea { font-size: 1.5em; width: 85%; left: 7.5%; }
-      .buttons button { font-size: 0.9em; padding: 10px 15px; width: 120px; }
-      .center-bar { width: 90vw; left: 5vw; height: auto; padding: 15px; }
-      .center-bar button { font-size: 0.9em; padding: 10px 15px; }
+    /* Default styles for large desktops */
+    input, textarea {
+      font-size: 2em;
+      width: 75%;
+      left: 12.5%; /* Centered if position: relative is used */
     }
+    .buttons button {
+      font-size: 1.1em;
+      padding: 14px 20px;
+      width: 140px;
+    }
+    .center-bar {
+      width: 80vw;
+      left: 10vw;
+      height: auto;
+      padding: 25px;
+    }
+    .center-bar button {
+      font-size: 1.1em;
+      padding: 14px 20px;
+    }
+
+    /* Laptop screens (max-width: 1200px) */
+    @media (max-width: 1200px) {
+      input, textarea {
+        font-size: 1.8em;
+        width: 80%;
+        left: 10%;
+      }
+      .buttons button {
+        font-size: 1em;
+        padding: 12px 18px;
+        width: 130px;
+      }
+      .center-bar {
+        width: 85vw;
+        left: 7.5vw;
+        padding: 20px;
+      }
+      .center-bar button {
+        font-size: 1em;
+        padding: 12px 18px;
+      }
+    }
+
+    /* Tablet and Medium Devices (max-width: 768px) */
+    @media (max-width: 768px) {
+      input, textarea {
+        font-size: 1.5em;
+        width: 85%;
+        left: 7.5%;
+      }
+      .buttons button {
+        font-size: 0.9em;
+        padding: 10px 15px;
+        width: 120px;
+      }
+      .center-bar {
+        width: 90vw;
+        left: 5vw;
+        height: auto;
+        padding: 15px;
+      }
+      .center-bar button {
+        font-size: 0.9em;
+        padding: 10px 15px;
+      }
+    }
+
+    /* Small Devices / Mobiles (max-width: 480px) */
     @media (max-width: 480px) {
-      input, textarea { font-size: 1.2em; width: 90%; left: 5%; }
-      .buttons button { font-size: 0.8em; padding: 8px 12px; width: 100px; }
-      .center-bar { width: 95vw; left: 2.5vw; height: auto; padding: 10px; text-align: center; }
-      .center-bar button { font-size: 0.8em; padding: 8px 12px; }
+      input, textarea {
+        font-size: 1.2em;
+        width: 90%;
+        left: 5%;
+      }
+      .buttons button {
+        font-size: 0.8em;
+        padding: 8px 12px;
+        width: 100px;
+      }
+      .center-bar {
+        width: 95vw;
+        left: 2.5vw;
+        height: auto;
+        padding: 10px;
+        text-align: center;
+      }
+      .center-bar button {
+        font-size: 0.8em;
+        padding: 8px 12px;
+      }
     }
   </style>
 </head>
