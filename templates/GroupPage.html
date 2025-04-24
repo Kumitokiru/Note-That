@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Group Page - Note That</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: #333;
+      color: white;
+      font-family: Arial, sans-serif;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    /* Left Sidebar */
+    .sidebar {
+      position: absolute;
+      width: 20vw;
+      height: 100vh;
+      background-color: #222;
+      padding: 15px 25px;
+      border-right: 1px solid #555;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .sidebar .back-button {
+      background-color: #555;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      width: 40px;
+      height: 40px;
+      font-size: 1.2em;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .sidebar .back-button:hover {
+      background-color: gray;
+      color: khaki;
+    }
+    .sidebar h3 {
+      margin-bottom: 10px;
+    }
+    .sidebar a.note-item {
+      display: block;
+      color: white;
+      text-decoration: none;
+      padding: 5px 0;
+      margin-left: 5px;
+    }
+    .sidebar a.note-item:hover {
+      background-color: gray;  
+      color: khaki !important;
+    }
+    .sidebar .highlight {
+      background-color: gray;
+      color: khaki !important;
+      padding: 5px;
+      border-radius: 5px;
+      transition: background-color 0.5s, color 0.5s;
+    }
+    /* Right Sidebar: Always displayed */
+    .right-sidebar {
+      position: absolute;
+      right: 0;
+      width: 15vw;
+      height: 100vh;
+      background-color: #222;
+      padding: 20px;
+      border-left: 1px solid #555;
+      overflow-y: auto;
+      scrollbar-width: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .right-sidebar::-webkit-scrollbar { display: none; }
+    .right-sidebar .time-log-btn {
+      margin-bottom: 20px;
+      background-color: #555;
+      border: none;
+      color: white;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .right-sidebar .logs-container {
+      width: 100%;
+      margin-top: 10px;
+    }
+    .right-sidebar .log-entry {
+      background-color: #555;
+      border: 1px solid #666;
+      border-radius: 5px;
+      padding: 5px 10px;
+      margin-bottom: 5px;
+      font-size: 0.8em;
+      text-align: center;
+      transition: background-color 0.3s ease;
+    }
+    .right-sidebar .log-entry:hover {
+      background-color: gray;  
+      color: khaki !important; 
+    }
+    /* Center Bar: Note Details */
+    .center-bar {
+      position: absolute;
+      width: 65vw;
+      height: 18vh;
+      left: 20vw;
+      bottom: 0;
+      background-color: #222;
+      border-top: 1px solid #555;
+      padding: 20px;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+    .center-bar::-webkit-scrollbar { display: none; }
+    .center-bar a:hover {
+      background-color: gray;
+      color: khaki !important;
+    }
+    /* Main Content: Group Header & Note Form */
+    .main-content {
+      position: absolute;
+      left: 20vw;
+      width: 60vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+    }
+    
+    /* Group Header */
+    .group-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      width: 100%;
+      padding: 10px;
+      border-bottom: 1px solid #555;
+    }
+    .group-name-container h2 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .group-members {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .group-member {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 0.9em;
+    }
+    .group-member img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: #777;
+      margin-bottom: 5px;
+      transition: filter 0.3s ease;
+    }
+    input {
+      position: absolute;
+      width: 80%;
+      font-size: 2em;
+      background-color: #555;
+      border: 1px solid #666;
+      border-radius: 5px;
+      color: white;
+      padding: 10px;
+    }
+    textarea {
+      position: absolute;
+      width: 80%;
+      font-size: 2em;
+      background-color: #555;
+      border: 1px solid #666;
+      border-radius: 5px;
+      color: white;
+      padding: 10px;
+    }
+    input { top: 110px; height: 40px; left: 10%; }
+    textarea { top: 170px; height: 360px; resize: none; left: 10%; }
+    .buttons {
+      position: absolute;
+      top: 550px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 15px;
+    }
+    .buttons {
+      display: flex;
+      gap: 20px;
+      margin-top: 1px;
+    }
+    .buttons button {
+      padding: 12px 18px;
+      background-color: #555;
+      color: white;
+      border: none;
+      cursor: pointer;
+      width: 130px;
+      border-radius: 5px;
+      font-size: 1em;
+    }
+    .note-buttons {
+      position: absolute;
+      top: 180px; /* Adjust to vertically center with the textarea */
+      left: 820px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+  }
+  .note-buttons button {
+      padding: 12px 18px;
+      background-color: #555;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 1em;
+      width: 130px;
+  }
+  .note-buttons button:hover {
+      background-color: gray;
+      color: khaki;
+  }
+    .member-note button {
+      position: absolute;
+      background-color: #555;
+      color: white;
+      border: none;
+      cursor: pointer;
+      top: 15%;
+      right: -5%;
+      width: 130px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 0.9em;
+    }
+    .member-note button:hover {
+      background-color: gray;
+      color: khaki;
+    }
+    .member-log button {
+      position: absolute;
+      background-color: #555;
+      color: white;
+      border: none;
+      cursor: pointer;
+      top: 20%;
+      right: -5%;
+      width: 130px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 0.9em;
+    }
+    .member-log button:hover {
+      background-color: gray;
+      color: khaki;
+    }
+    .buttons button:hover { background-color: gray; color: khaki; }
+    /* Default styles for large desktops */
+    input, textarea {
+      font-size: 2em;
+      width: 75%;
+      left: 12.5%; /* Centered if position: relative is used */
+    }
+    .buttons button {
+      font-size: 1.1em;
+      padding: 14px 20px;
+      width: 140px;
+    }
+    .center-bar {
+      width: 80vw;
+      left: 10vw;
+      height: auto;
+      padding: 25px;
+    }
+    .center-bar button {
+      font-size: 1.1em;
+      padding: 14px 20px;
+    }
+
+    /* Laptop screens (max-width: 1200px) */
+    @media (max-width: 1200px) {
+      input, textarea {
+        font-size: 1.8em;
+        width: 80%;
+        left: 10%;
+      }
+      .buttons button {
+        font-size: 1em;
+        padding: 12px 18px;
+        width: 130px;
+      }
+      .center-bar {
+        width: 85vw;
+        left: 7.5vw;
+        padding: 20px;
+      }
+      .center-bar button {
+        font-size: 1em;
+        padding: 12px 18px;
+      }
+    }
+
+    /* Tablet and Medium Devices (max-width: 768px) */
+    @media (max-width: 768px) {
+      input, textarea {
+        font-size: 1.5em;
+        width: 85%;
+        left: 7.5%;
+      }
+      .buttons button {
+        font-size: 0.9em;
+        padding: 10px 15px;
+        width: 120px;
+      }
+      .center-bar {
+        width: 90vw;
+        left: 5vw;
+        height: auto;
+        padding: 15px;
+      }
+      .center-bar button {
+        font-size: 0.9em;
+        padding: 10px 15px;
+      }
+    }
+
+    /* Small Devices / Mobiles (max-width: 480px) */
+    @media (max-width: 480px) {
+      input, textarea {
+        font-size: 1.2em;
+        width: 90%;
+        left: 5%;
+      }
+      .buttons button {
+        font-size: 0.8em;
+        padding: 8px 12px;
+        width: 100px;
+      }
+      .center-bar {
+        width: 95vw;
+        left: 2.5vw;
+        height: auto;
+        padding: 10px;
+        text-align: center;
+      }
+      .center-bar button {
+        font-size: 0.8em;
+        padding: 8px 12px;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+      <button class="back-button" onclick="goBack()">&#60;</button>
+      
+      <h3>Group Notes</h3>
+      {% for note in group_notes %}
+      <a href="{{ url_for('group_page', group_name=group_name, selected_note=note.note_title) }}" 
+         class="note-item {% if selected_note == note.note_title %}highlight{% endif %}">
+         {{ note.username }} - {{ note.note_title }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Right Sidebar: Always displayed -->
+    <div class="right-sidebar">
+      <a href="{{ url_for('time_page', group_name=group_name) }}">
+        <button class="time-log-btn">Time Log</button>
+      </a>
+      <h3>Member Status</h3>
+      <div class="logs-container">
+        {% if logs|length > 0 %}
+          {% for log in logs %}
+            <div class="log-entry">
+              {{ log.username }}: {{ log.status }} at {{ log.timestamp }}
+            </div>
+          {% endfor %}
+        {% else %}
+          <div>No logs yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="group-header">
+        <div class="group-name-container">
+          <h2>{{ group_name if group_name else "Unnamed Group" }}</h2>
+          
+        </div>
+        
+        
+        <div class="group-members">
+          
+          {% for member in group_members %}
+          <div class="group-member">
+            {% if current_status[member.username] == "Clock Out" %}
+              <img src="{{ url_for('static', filename='uploads/' + member.profile_pic) }}" alt="Profile" style="filter: grayscale(100%);">
+            {% else %}
+              <img src="{{ url_for('static', filename='uploads/' + member.profile_pic) }}" alt="Profile">
+            {% endif %}
+            <span>{{ member.username }}</span>
+            
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <!-- Note Form: Conditionally disable editing if not editable -->
+      <div class="note-form">
+
+        <form method="post" action="{{ url_for('group_page', group_name=group_name) }}">
+          <div class="member-note button">
+            <button type="submit" name="member_notes">Member's Notes</button>
+          </div>
+          <div class="member-log button">
+            <button type="submit" name="member_logs">Member's Log</button>
+          </div>
+          <input type="text" name="note_title" placeholder="Note Name" value="{{ note_title }}" {% if not editable %}disabled{% endif %}>
+          <textarea name="note_content" placeholder="Type Here" {% if not editable %}disabled{% endif %}>{{ note_content }}</textarea>
+          <div class="note-buttons">
+              {% if editable %}
+                  <button type="submit" name="save_note">Save Note</button>
+              {% endif %}
+              <button type="submit" name="new_note">New Note</button>
+          </div>
+        </form>
+        
+      </div>
+    </div>
+
+    <!-- Center Bar -->
+    <div class="center-bar">
+      <h3>Group Note Details</h3>
+      {% for note in group_notes %}
+      <a href="{{ url_for('group_page', group_name=group_name, selected_note=note.note_title) }}" 
+         class="{% if selected_note == note.note_title %}highlight{% endif %}"
+         style="display: block; padding: 5px 0; font-size: 1.1em; color: white; text-decoration: none;">
+         {{ note.username }} - {{ note.note_title }} - {{ note.timestamp }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    function goBack() {
+      window.location.href = "{{ url_for('user_page') }}";
+    }
+    // SocketIO for real-time group note updates
+    socket.on('update_group_notes', function(data) {
+      setTimeout(function() {
+        if(data.group_name === "{{ group_name }}") {
+          console.log('New group note:', data.note.note_title);
+          var leftSidebar = document.querySelector('.sidebar');
+          var newLeftLink = document.createElement('a');
+          newLeftLink.href = `/group_page?group_name={{ group_name }}&selected_note=${data.note.note_title}`;
+          newLeftLink.className = 'note-item';
+          newLeftLink.textContent = data.note.username + " - " + data.note.note_title;
+          leftSidebar.appendChild(newLeftLink);
+          var centerBar = document.querySelector('.center-bar');
+          var newCenterLink = document.createElement('a');
+          newCenterLink.href = `/group_page?group_name={{ group_name }}&selected_note=${data.note.note_title}`;
+          newCenterLink.style.display = "block";
+          newCenterLink.style.padding = "5px 0";
+          newCenterLink.style.fontSize = "1.1em";
+          newCenterLink.textContent = data.note.username + " - " + data.note.note_title + " - " + data.note.timestamp;
+          centerBar.appendChild(newCenterLink);
+        }
+      }, 2000);
+    });
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</body>
+</html>

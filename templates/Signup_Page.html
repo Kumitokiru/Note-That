@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Note That</title>
+    <style>
+        :root {
+            --background-color: #222;
+            --container-color: #333;
+            --input-bg-color: #555;
+            --input-border: #666;
+            --text-color: white;
+            --button-color: #007BFF;
+            --button-hover: #0056b3;
+            --label-color: #aaa;
+            --label-focus: #fff;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            /* Use background image */
+            background: url('/static/images/body.png') no-repeat center center fixed;
+            background-size: cover;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Outer wrapper to hold the icon and the container side-by-side */
+        .outer-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        
+        /* Icon container */
+        .icon img {
+            width: 550px;
+            height: 520px;
+            border-radius: 10px;
+            /* Manually adjust horizontal offset as needed: */
+            position: relative;
+            right: -40px; /* negative moves left, positive moves right */
+            z-index: 2;
+        }
+
+        .container {
+            width: 50%;
+            max-width: 800px;
+            background-color: var(--container-color);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            position: relative;
+            right: -20px; /* You can also tweak this offset */
+        }
+
+        #logo {
+            max-width: 150px;
+            height: 60px;
+            margin-bottom: 20px;
+        }
+
+        /* Grid Layout for Fields */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            text-align: left;
+        }
+
+        /* Floating Label Container */
+        .input-container {
+            position: relative;
+            width: 80%;
+            margin-bottom: 20px;
+        }
+        .input-container input {
+            width: 100%;
+            padding: 12px 10px;
+            border-radius: 5px;
+            border: 1px solid var(--input-border);
+            background-color: var(--input-bg-color);
+            color: var(--text-color);
+            font-size: 16px;
+            outline: none;
+        }
+        .input-container label {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            color: var(--label-color);
+            font-size: 16px;
+            transition: 0.3s ease-in-out;
+            pointer-events: none;
+        }
+        .input-container input:focus + label,
+        .input-container input:not(:placeholder-shown) + label {
+            top: 5px;
+            left: 10px;
+            font-size: 12px;
+            color: var(--label-focus);
+            background-color: var(--container-color);
+            padding: 0 5px;
+        }
+
+        /* Floating Label for File Input */
+        .file-container {
+            position: relative;
+            width: 80%;
+            margin-bottom: 20px;
+        }
+        .file-container input[type="file"] {
+            width: 100%;
+            max-width: 300px;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid var(--input-border);
+            background-color: var(--input-bg-color);
+            color: var(--text-color);
+            font-size: 16px;
+            cursor: pointer;
+            outline: none;
+            opacity: 0;
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+        }
+        .file-container label {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            font-size: 16px;
+            color: var(--label-color);
+            transition: 0.3s ease-in-out;
+            background-color: var(--input-bg-color);
+            padding: 10px 15px;
+            width: 100%;
+            text-align: center;
+            border-radius: 5px;
+            border: 1px solid var(--input-border);
+            cursor: pointer;
+        }
+
+        /* Center Button */
+        .button-container {
+            grid-column: span 2;
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        button {
+            width: 120px;
+            padding: 12px;
+            background-color: var(--button-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+        }
+        button:hover {
+            background-color: var(--button-hover);
+        }
+
+        .bottom-section {
+            margin-top: 15px;
+            color: lightgray;
+        }
+        a {
+            color: cyan;
+            font-weight: bold;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+            .outer-wrapper {
+                flex-direction: column;
+            }
+            /* Possibly reset the offsets for smaller screens: */
+            .icon img {
+                position: static;
+                right: auto;
+                margin: 0 auto;
+                display: block;
+            }
+            .container {
+                position: static;
+                right: auto;
+                width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="outer-wrapper">
+        <!-- Icon placed to the left of the container -->
+        <div class="icon">
+            <img src="/static/images/icon.png" alt="Icon">
+        </div>
+
+        <div class="container">
+            <img src="/static/images/logo.png" alt="Note That Logo" id="logo">
+
+            <form action="/signup" method="POST" enctype="multipart/form-data">
+                <div class="grid-container">
+                    <!-- Left Column -->
+                    <div>
+                        <div class="input-container">
+                            <input type="file" id="usrphtbtn" name="usrphtbtn" required>
+                            <label for="usrphtbtn">Upload Profile Photo</label>
+                        </div>
+                        <div class="input-container">
+                            <input type="text" id="txtf1" name="txtf1" placeholder=" " required>
+                            <label for="txtf1">First Name</label>
+                        </div>
+                        <div class="input-container">
+                            <input type="text" id="txtf2" name="txtf2" placeholder=" ">
+                            <label for="txtf2">Middle Initial</label>
+                        </div>
+                        <div class="input-container">
+                            <input type="text" id="txtf3" name="txtf3" placeholder=" " required>
+                            <label for="txtf3">Last Name</label>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div>
+                        <div class="input-container">
+                            <input type="text" id="txtf4" name="txtf4" placeholder=" " required>
+                            <label for="txtf4">Username</label>
+                        </div>
+                        <div class="input-container">
+                            <input type="email" id="txtf5" name="txtf5" placeholder=" " required>
+                            <label for="txtf5">Email</label>
+                        </div>
+                        <div class="input-container">
+                            <input type="password" id="txtf6" name="txtf6" placeholder=" " required>
+                            <label for="txtf6">Password</label>
+                        </div>
+                    </div>
+
+                    <!-- Sign Up Button -->
+                    <div class="button-container">
+                        <button type="submit">Sign Up</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="bottom-section">
+                Have an account? <a href="{{ url_for('login') }}">Log In</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
